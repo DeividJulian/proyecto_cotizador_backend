@@ -47,7 +47,7 @@ def item_manual(nombre: str, categoria: str, complejidad: str, horas_probable: f
         "complejidad": complejidad,
         "origen": "manual",
         "distribucion": distribucion or dict(DISTRIBUCION_ESTANDAR),
-        "motivos": "Agregado manualmente",
+        "motivos": "Added manually",
         **_horas(horas_probable, complejidad),
     }
 
@@ -62,11 +62,11 @@ def items_transversales(items_desarrollo: list[dict]) -> list[dict]:
         resultado.append(
             {
                 "nombre": t["nombre"],
-                "categoria": "Transversal",
+                "categoria": "Cross-cutting",
                 "complejidad": "media",
                 "origen": "ia",
                 "distribucion": {t["rol"]: 1.0},
-                "motivos": f"{round(t['porcentaje'] * 100)} % de las horas de desarrollo (mínimo {t['minimo']} h)",
+                "motivos": f"{round(t['porcentaje'] * 100)}% of development hours (minimum {t['minimo']} h)",
                 "horas_optimista": round(o, 1),
                 "horas_probable": round(m, 1),
                 "horas_pesimista": round(p, 1),

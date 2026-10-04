@@ -16,8 +16,8 @@ ALCANCE = (
     "Panel de administración para gestionar pedidos y reportes de ventas. Los clientes deben iniciar sesión."
 )
 
-TARIFAS = {"Backend": 55000, "Frontend": 50000, "Diseño UX/UI": 45000, "QA": 40000, "DevOps": 60000,
-           "Gestión de proyecto": 65000}
+TARIFAS = {"Backend": 55000, "Frontend": 50000, "UX/UI Design": 45000, "QA": 40000, "DevOps": 60000,
+           "Project Management": 65000}
 
 
 @pytest.fixture(autouse=True)

@@ -10,7 +10,7 @@ from database import Base, engine
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Motor de Cotización con IA", version="1.0.0")
+app = FastAPI(title="AI Quotation Engine", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,11 +27,11 @@ for _, nombre_modulo, _ in pkgutil.iter_modules(routers.__path__):
         app.include_router(modulo.router)
 
 
-@app.get("/", tags=["Sistema"])
+@app.get("/", tags=["System"])
 def raiz():
-    return {"mensaje": "API del Motor de Cotización funcionando"}
+    return {"mensaje": "AI Quotation Engine API is running"}
 
 
-@app.get("/health", tags=["Sistema"])
+@app.get("/health", tags=["System"])
 def health():
     return {"status": "ok"}

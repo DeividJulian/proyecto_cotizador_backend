@@ -45,7 +45,7 @@ class ItemCotizacion(Base):
     id = Column(Integer, primary_key=True, index=True)
     cotizacion_id = Column(Integer, ForeignKey("cotizaciones.id"), nullable=False)
     nombre = Column(String, nullable=False)
-    categoria = Column(String, nullable=False, default="Personalizado")
+    categoria = Column(String, nullable=False, default="Custom")
     complejidad = Column(String, nullable=False, default="media")
     origen = Column(String, nullable=False, default="manual")  # "ia" o "manual"
     horas_optimista = Column(Float, nullable=False, default=0.0)

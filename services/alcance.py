@@ -36,22 +36,22 @@ def analizar_alcance(texto: str) -> dict:
         motivos = []
         if any(_senales(f, SENALES_ALTA) for f in frases_del_modulo):
             complejidad = "alta"
-            motivos.append("la descripción lo califica como complejo o de gran escala")
+            motivos.append("the description calls it complex or large-scale")
         elif any(_senales(f, SENALES_BAJA) for f in frases_del_modulo):
             complejidad = "baja"
-            motivos.append("la descripción lo califica como sencillo o básico")
+            motivos.append("the description calls it simple or basic")
         elif len(frases_del_modulo) >= 3:
             complejidad = "alta"
-            motivos.append("se menciona en varias partes del alcance")
+            motivos.append("it is mentioned in several parts of the scope")
         elif len(global_alta) >= 2:
             complejidad = "alta"
-            motivos.append("el proyecto en general se describe como complejo")
+            motivos.append("the project as a whole is described as complex")
         elif global_baja:
             complejidad = "baja"
-            motivos.append("el proyecto en general se describe como sencillo o un prototipo")
+            motivos.append("the project as a whole is described as simple or a prototype")
         else:
             complejidad = "media"
-            motivos.append("sin indicios de complejidad especial")
+            motivos.append("no signs of special complexity")
 
         modulos.append(
             {
@@ -68,9 +68,9 @@ def analizar_alcance(texto: str) -> dict:
     largo = len(texto.strip())
     advertencias = []
     if largo < 120:
-        advertencias.append("El alcance es muy corto: describe más funcionalidades para una estimación confiable.")
+        advertencias.append("The scope is very short: describe more features for a reliable estimate.")
     if n == 0:
-        advertencias.append("No se detectó ningún módulo conocido (login, pagos, reportes, app móvil, etc.).")
+        advertencias.append("No known module was detected (login, payments, reports, mobile app, etc.).")
 
     if n >= 4 and largo >= 300:
         confianza = "alta"

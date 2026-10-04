@@ -10,8 +10,8 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
     raise RuntimeError(
-        "Falta DATABASE_URL. Crea el archivo .env (puedes copiar .env.example) "
-        "con una línea como: DATABASE_URL=postgresql+psycopg://usuario:clave@host/base?sslmode=require"
+        "DATABASE_URL is missing. Create the .env file (you can copy .env.example) "
+        "with a line like: DATABASE_URL=postgresql+psycopg://usuario:clave@host/base?sslmode=require"
     )
 
 opciones = {"pool_pre_ping": True, "pool_recycle": 300}  # Neon duerme la base tras 5 min sin uso
