@@ -1,8 +1,9 @@
 # AI Quotation Engine: backend
 
-A **FastAPI** API that turns the description of a software project into a complete quote:
-it detects the modules, estimates the hours with **PERT**, calculates the price and writes the commercial proposal.
-Database: **PostgreSQL on Neon**.
+A **FastAPI** API for freelancers who don't know how much to charge: the user describes their software project and
+the app turns it into a complete quote. It detects the modules, estimates the hours with **PERT**, calculates the
+price with the user's hourly rates and writes the commercial proposal.
+Database: **PostgreSQL on Neon**. Login: **Google**.
 
 ## What does the "AI" do?
 All natural language processing is implemented in plain Python, with no external APIs, and every result is explainable:
@@ -13,7 +14,7 @@ All natural language processing is implemented in plain Python, with no external
 | Estimation | Three-point PERT: (optimistic + 4·most likely + pessimistic) / 6, with ranges based on complexity |
 | Work split | Each module is distributed among Backend, Frontend and UX/UI Design; QA, project management and deployment are calculated as a % of development |
 | Financial calculation | direct cost → contingency → margin → discount → VAT, plus schedule and 40/30/30 payment milestones |
-| Similar quotes | TF-IDF and cosine similarity implemented from scratch |
+| Similar quotes | TF-IDF and cosine similarity implemented from scratch (only among the user's own quotes) |
 | Proposal | Markdown document with 8 sections, amounts in Colombian pesos (COP) |
 
 Scope descriptions are expected in Spanish: the module keywords in `services/catalogo.py` are Spanish.
@@ -23,10 +24,10 @@ Scope descriptions are expected in Spanish: the module keywords in `services/cat
 python -m venv venv
 venv\Scripts\activate            # Windows
 pip install -r requirements-dev.txt
-copy .env.example .env           # then paste your Neon connection string
+copy .env.example .env           # then paste your Neon connection string and Google client ID
 uvicorn main:app --reload
 ```
-Interactive documentation at http://127.0.0.1:8000/docs. For demo data: `POST /seed`.
+Interactive documentation at http://127.0.0.1:8000/docs.
 
 ### Neon database
 1. Create a project at https://neon.tech and copy the *connection string*.
@@ -36,46 +37,39 @@ Interactive documentation at http://127.0.0.1:8000/docs. For demo data: `POST /s
 Neon puts the database to sleep after 5 minutes of inactivity: the first request may take a couple of seconds.
 The engine uses `pool_pre_ping` and `pool_recycle` to reconnect without errors.
 
-## Login and roles
-Passwordless login: the user enters their email and receives a **6-digit one-time code**.
+If the database still has tables from an older version of the schema, recreate them (this **deletes all data**):
+`python reset_db.py --si`.
 
-1. `POST /auth/registro` (name, email, company) → emails a verification code.
-2. `POST /auth/login` (email) → emails a login code (for accounts that already exist).
-3. `POST /auth/verificar` (email, code) → returns a JWT. Send it as `Authorization: Bearer <token>`.
-4. `GET /auth/me` → current user.
+## Login with Google
+1. The frontend shows the "Continue with Google" button and receives a Google **ID token**.
+2. `POST /auth/google` with `{"credencial": "<ID token>"}`. The backend verifies the token's signature, audience
+   (`GOOGLE_CLIENT_ID`), issuer and expiry, and that the email is verified.
+3. The first login creates the account and loads the **market reference rates**. Next logins recover the same
+   account (matched by the Google account id), with all its quotes.
+4. The response includes the app's own JWT. Send it as `Authorization: Bearer <token>`. `GET /auth/me` returns the user.
 
-Codes expire after 10 minutes, can be used once, allow 5 attempts, and you must wait 30 seconds before requesting
-another one. Only a hash of the code is stored.
-
-| Role | Can do |
-|---|---|
-| `admin` | Everything: clients, rates, quotes, proposals, statistics, demo data and `/usuarios` (change roles). |
-| `cliente` | See their own **sent** quotes (`GET /cotizaciones`, `/resumen`, `/propuesta`) and accept or reject them (`POST /cotizaciones/{id}/respuesta`). |
-
-Emails listed in `ADMIN_EMAILS` become admins when they sign up; everyone else is a client linked to their client
-record (matched by email, or created on verification). In `/docs`, use the **Authorize** button to paste the token.
-
-### Sending emails
-`EMAIL_BACKEND` chooses the provider: `consola` (prints the code in the terminal, default for local development),
-`smtp` (e.g. Gmail with an app password, local only) or `brevo` (HTTP API, works on Render, whose free plan blocks
-SMTP ports). See `.env.example`.
+There are no roles: every user sees and edits **only their own** quotes, items, proposals, rates and statistics.
+Another user's data simply does not exist for them (404). In `/docs`, use **Authorize** to paste the token.
 
 ## Usage flow
-1. `POST /tarifas`: hourly cost of each role (or `POST /seed`).
-2. `POST /clientes` and `POST /cotizaciones` with the scope as free text.
+1. Sign in with Google: your rates are already loaded (adjust them in `/tarifas` if you want, or restore them with
+   `POST /tarifas/restablecer`). `POST /seed` loads example quotes.
+2. `POST /cotizaciones` with the scope as free text (optionally, who the project is for: `cliente_nombre`, `cliente_empresa`).
 3. `POST /cotizaciones/{id}/analizar`: modules, hours and price.
 4. Optional adjustments: `PUT /cotizaciones/{id}` (margin, discount…) or `/items` (add, edit, remove). Everything is recalculated automatically.
 5. `POST /cotizaciones/{id}/propuesta` and `GET .../propuesta/descargar`.
-6. `POST /cotizaciones/{id}/estado`: `borrador` (draft) → `enviada` (sent) → `aceptada` (accepted) | `rechazada` (rejected).
+6. `POST /cotizaciones/{id}/estado` to track the proposal you sent to your client:
+   `borrador` (draft) → `enviada` (sent) → `aceptada` (accepted) | `rechazada` (rejected).
 
 A sent quote is frozen; to edit it, move it back to `borrador`.
 
 ## Main endpoints
 | Group | Routes |
 |---|---|
+| Authentication | `POST /auth/google`, `GET /auth/me` |
 | Scope | `POST /alcance/analizar`, `POST /alcance/estimar` (nothing is saved) |
 | Finance | `POST /finanzas/simular` |
-| Clients and rates | CRUD at `/clientes` and `/tarifas` |
+| Rates | CRUD at `/tarifas`, `POST /tarifas/restablecer`, `GET /tarifas/mercado` (public) |
 | Quotes | CRUD, `/analizar`, `/resumen`, `/estado`, `/similares` |
 | Items | `/cotizaciones/{id}/items` (GET, POST, PUT, DELETE) |
 | Proposal | `/cotizaciones/{id}/propuesta` and `/descargar` |
@@ -85,5 +79,5 @@ A sent quote is frozen; to edit it, move it back to `borrador`.
 ```bash
 pytest
 ```
-140 tests on SQLite; they never touch the Neon database and never send real emails (they read the codes from
-an in-memory outbox).
+107 tests on SQLite. They never touch the Neon database and never call Google: a test verifier replaces the
+Google token check, and the real verifier is tested with google-auth mocked.
