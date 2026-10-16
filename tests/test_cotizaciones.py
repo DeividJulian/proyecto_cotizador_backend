@@ -1,13 +1,13 @@
-from tests.conftest import TARIFAS
+from tests.conftest import TARIFAS, borrar_tarifas
 
 
 def test_crear_cotizacion_en_borrador(client, cotizacion):
     assert cotizacion["estado"] == "borrador" and cotizacion["total"] == 0 and cotizacion["items"] == []
 
 
-def test_cliente_inexistente_da_404(client):
-    r = client.post("/cotizaciones", json={"cliente_id": 99, "titulo": "Proyecto X", "descripcion_alcance": "Una tienda en línea con pagos"})
-    assert r.status_code == 404
+def test_para_quien_es_el_proyecto_es_opcional(client):
+    r = client.post("/cotizaciones", json={"titulo": "Proyecto X", "descripcion_alcance": "Una tienda en línea con pagos"})
+    assert r.status_code == 201 and r.json()["cliente_nombre"] is None
 
 
 def test_analizar_genera_items_estimacion_y_total(cotizacion_analizada):
@@ -19,13 +19,14 @@ def test_analizar_genera_items_estimacion_y_total(cotizacion_analizada):
 
 
 def test_analizar_sin_tarifas_da_409_y_no_guarda_nada(client, cotizacion):
+    borrar_tarifas(client)
     r = client.post(f"/cotizaciones/{cotizacion['id']}/analizar")
     assert r.status_code == 409 and "rate" in r.json()["detail"].lower()
     assert client.get(f"/cotizaciones/{cotizacion['id']}").json()["items"] == []
 
 
-def test_analizar_alcance_vago_da_422(client, tarifas, cliente_id):
-    c = client.post("/cotizaciones", json={"cliente_id": cliente_id, "titulo": "Vago", "descripcion_alcance": "Quiero algo bonito para mi negocio"}).json()
+def test_analizar_alcance_vago_da_422(client, tarifas):
+    c = client.post("/cotizaciones", json={"titulo": "Vago", "descripcion_alcance": "Quiero algo bonito para mi negocio"}).json()
     assert client.post(f"/cotizaciones/{c['id']}/analizar").status_code == 422
 
 
@@ -76,14 +77,14 @@ def test_cotizacion_inexistente(client):
     assert client.post("/cotizaciones/999/analizar").status_code == 404
 
 
-def test_similares(client, tarifas, cliente_id, cotizacion):
-    client.post("/cotizaciones", json={"cliente_id": cliente_id, "titulo": "Otra tienda", "descripcion_alcance": "Tienda en línea con catálogo de productos y pagos en línea"})
-    client.post("/cotizaciones", json={"cliente_id": cliente_id, "titulo": "Intranet", "descripcion_alcance": "Intranet de documentos para recursos humanos"})
+def test_similares(client, tarifas, cotizacion):
+    client.post("/cotizaciones", json={"titulo": "Otra tienda", "descripcion_alcance": "Tienda en línea con catálogo de productos y pagos en línea"})
+    client.post("/cotizaciones", json={"titulo": "Intranet", "descripcion_alcance": "Intranet de documentos para recursos humanos"})
     r = client.get(f"/cotizaciones/{cotizacion['id']}/similares").json()
     assert r[0]["titulo"] == "Otra tienda"
     assert r[0]["similitud"] >= r[-1]["similitud"]
 
 
-def test_cliente_con_cotizaciones_no_se_elimina(client, cliente_id, cotizacion):
-    r = client.delete(f"/clientes/{cliente_id}")
-    assert r.status_code == 409
+def test_editar_y_borrar_para_quien_es(client, cotizacion):
+    r = client.put(f"/cotizaciones/{cotizacion['id']}", json={"cliente_nombre": "Carlos", "cliente_empresa": ""})
+    assert r.json()["cliente_nombre"] == "Carlos" and r.json()["cliente_empresa"] is None

@@ -14,6 +14,7 @@ def test_generar_propuesta_con_secciones_y_formato_cop(client, cotizacion_analiz
     total = f"{cotizacion_analizada['total']:,}"
     assert f"${total} COP" in texto
     assert f"QT-{cid:04d}" in texto
+    assert "**Client:** Ana Pérez · Pyme SAS" in texto and "**Prepared by:** Ana Pérez" in texto
 
 
 def test_descargar_propuesta(client, cotizacion_analizada):

@@ -1,6 +1,7 @@
 import pytest
 
 from services.finanzas import TarifaFaltante, calcular_financiero
+from tests.conftest import borrar_tarifas
 
 TARIFAS = {"Backend": 50000, "Frontend": 40000}
 
@@ -47,6 +48,7 @@ def test_simular_endpoint(client, tarifas):
 
 
 def test_simular_sin_tarifas_da_409(client):
+    borrar_tarifas(client)
     r = client.post("/finanzas/simular", json={"horas_por_rol": {"Backend": 10}})
     assert r.status_code == 409 and "Backend" in r.json()["detail"]
 
