@@ -1,0 +1,31 @@
+"""Dependencias de FastAPI para exigir sesión iniciada y rol de administrador."""
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.orm import Session
+
+from database import get_db
+from models.usuario import Usuario
+from services.auth import leer_token
+
+bearer = HTTPBearer(auto_error=False, description="Token from /auth/verificar")
+
+
+def usuario_actual(
+    credenciales: HTTPAuthorizationCredentials | None = Depends(bearer),
+    db: Session = Depends(get_db),
+) -> Usuario:
+    if credenciales is None:
+        raise HTTPException(status_code=401, detail="You must log in", headers={"WWW-Authenticate": "Bearer"})
+    usuario_id = leer_token(credenciales.credentials)
+    usuario = db.get(Usuario, usuario_id) if usuario_id is not None else None
+    if usuario is None or not usuario.verificado:
+        raise HTTPException(
+            status_code=401, detail="Session expired or invalid: log in again", headers={"WWW-Authenticate": "Bearer"}
+        )
+    return usuario
+
+
+def solo_admin(usuario: Usuario = Depends(usuario_actual)) -> Usuario:
+    if usuario.rol != "admin":
+        raise HTTPException(status_code=403, detail="This action is only for administrators")
+    return usuario
