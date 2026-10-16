@@ -24,10 +24,11 @@ def main() -> None:
         print("No se borró nada. Ejecuta 'python reset_db.py --si' para borrar todo y recrear las tablas.")
         return
 
+    cascada = " CASCADE" if engine.dialect.name == "postgresql" else ""  # SQLite no lo soporta
     with engine.begin() as conexion:
         for tabla in existentes:
             if tabla in TABLAS_VIEJAS or tabla in Base.metadata.tables:
-                conexion.execute(text(f'DROP TABLE IF EXISTS "{tabla}" CASCADE'))
+                conexion.execute(text(f'DROP TABLE IF EXISTS "{tabla}"{cascada}'))
     Base.metadata.create_all(bind=engine)
     print(f"Listo. Tablas nuevas: {', '.join(sorted(inspect(engine).get_table_names()))}")
 
