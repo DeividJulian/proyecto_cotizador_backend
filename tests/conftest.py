@@ -1,17 +1,18 @@
-import json
 import os
+import re
 
 # IMPORTANTE: se fija ANTES de importar la app para que los tests nunca toquen la base real (Neon)
+# ni envíen correos de verdad
 os.environ["DATABASE_URL"] = "sqlite:///./test_cotizador.db"
+os.environ["EMAIL_BACKEND"] = "memoria"
 os.environ["SECRET_KEY"] = "clave-de-pruebas-con-al-menos-32-bytes-de-largo"
-os.environ["GOOGLE_CLIENT_ID"] = "pruebas.apps.googleusercontent.com"
 
 import pytest
 from fastapi.testclient import TestClient
 
-import services.auth as auth
 from database import Base, engine
 from main import app
+from services.correo import BANDEJA
 from services.tarifas import TARIFAS_MERCADO
 
 assert str(engine.url).startswith("sqlite"), "Los tests solo deben correr contra SQLite"
@@ -24,27 +25,19 @@ ALCANCE = (
 # Cada cuenta nueva arranca con las tarifas de mercado
 TARIFAS = TARIFAS_MERCADO
 
-PREFIJO = "google-prueba:"
-VERIFICADOR_REAL = auth.verificar_token_google  # el fixture lo reemplaza; algunas pruebas lo usan directamente
 
-
-def credencial(email: str, nombre: str = "Usuario de prueba", sub: str | None = None, verificado: bool = True) -> str:
-    """Credencial falsa de Google: en las pruebas el verificador la decodifica en vez de llamar a Google."""
-    datos = {"sub": sub or f"sub-{email}", "email": email, "email_verified": verificado, "name": nombre,
-             "picture": "https://foto.example.com/a.png"}
-    return PREFIJO + json.dumps(datos)
-
-
-def verificador_de_prueba(valor: str) -> dict:
-    if not valor.startswith(PREFIJO):
-        raise auth.TokenGoogleInvalido("Invalid token")
-    return json.loads(valor[len(PREFIJO):])
+def ultimo_codigo(email: str) -> str:
+    """Código de 6 dígitos del último correo enviado a ese email (backend de correo "memoria")."""
+    correo = next(c for c in reversed(BANDEJA) if c["para"] == email)
+    return re.search(r"\b\d{6}\b", correo["texto"]).group()
 
 
 def entrar(email: str = "ana@pyme.com", nombre: str = "Ana Pérez") -> TestClient:
-    """Inicia sesión con el flujo real del API (POST /auth/google) y devuelve un cliente HTTP con su token."""
+    """Registra y verifica una cuenta con el flujo real del API; devuelve un cliente HTTP con su token."""
     sesion = TestClient(app)
-    r = sesion.post("/auth/google", json={"credencial": credencial(email, nombre)})
+    r = sesion.post("/auth/registro", json={"nombre": nombre, "email": email})
+    assert r.status_code == 201, r.text
+    r = sesion.post("/auth/verificar", json={"email": email, "codigo": ultimo_codigo(email)})
     assert r.status_code == 200, r.text
     sesion.headers["Authorization"] = f"Bearer {r.json()['token']}"
     return sesion
@@ -56,10 +49,10 @@ def borrar_tarifas(sesion: TestClient) -> None:
 
 
 @pytest.fixture(autouse=True)
-def base_limpia(monkeypatch):
+def base_limpia():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
-    monkeypatch.setattr(auth, "verificar_token_google", verificador_de_prueba)
+    BANDEJA.clear()
     yield
 
 
@@ -82,7 +75,7 @@ def otro():
 
 @pytest.fixture
 def tarifas(client):
-    """Las tarifas de mercado ya vienen cargadas al crear la cuenta."""
+    """Las tarifas de mercado ya vienen cargadas al activar la cuenta."""
     assert {t["rol"]: t["valor_hora"] for t in client.get("/tarifas").json()} == TARIFAS
 
 
