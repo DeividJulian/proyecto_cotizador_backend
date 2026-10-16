@@ -7,5 +7,18 @@ services:
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
+      # Los valores con sync: false se pegan a mano en el panel de Render (Environment)
       - key: DATABASE_URL
-        sync: false # se pega a mano en el panel de Render (cadena de Neon con postgresql+psycopg://)
+        sync: false # cadena de Neon con postgresql+psycopg://
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_EMAILS
+        sync: false
+      - key: EMAIL_BACKEND
+        value: brevo
+      - key: EMAIL_FROM
+        sync: false # remitente verificado en Brevo
+      - key: EMAIL_FROM_NAME
+        value: AI Quoter
+      - key: BREVO_API_KEY
+        sync: false

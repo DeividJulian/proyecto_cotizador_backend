@@ -36,6 +36,30 @@ Interactive documentation at http://127.0.0.1:8000/docs. For demo data: `POST /s
 Neon puts the database to sleep after 5 minutes of inactivity: the first request may take a couple of seconds.
 The engine uses `pool_pre_ping` and `pool_recycle` to reconnect without errors.
 
+## Login and roles
+Passwordless login: the user enters their email and receives a **6-digit one-time code**.
+
+1. `POST /auth/registro` (name, email, company) → emails a verification code.
+2. `POST /auth/login` (email) → emails a login code (for accounts that already exist).
+3. `POST /auth/verificar` (email, code) → returns a JWT. Send it as `Authorization: Bearer <token>`.
+4. `GET /auth/me` → current user.
+
+Codes expire after 10 minutes, can be used once, allow 5 attempts, and you must wait 30 seconds before requesting
+another one. Only a hash of the code is stored.
+
+| Role | Can do |
+|---|---|
+| `admin` | Everything: clients, rates, quotes, proposals, statistics, demo data and `/usuarios` (change roles). |
+| `cliente` | See their own **sent** quotes (`GET /cotizaciones`, `/resumen`, `/propuesta`) and accept or reject them (`POST /cotizaciones/{id}/respuesta`). |
+
+Emails listed in `ADMIN_EMAILS` become admins when they sign up; everyone else is a client linked to their client
+record (matched by email, or created on verification). In `/docs`, use the **Authorize** button to paste the token.
+
+### Sending emails
+`EMAIL_BACKEND` chooses the provider: `consola` (prints the code in the terminal, default for local development),
+`smtp` (e.g. Gmail with an app password, local only) or `brevo` (HTTP API, works on Render, whose free plan blocks
+SMTP ports). See `.env.example`.
+
 ## Usage flow
 1. `POST /tarifas`: hourly cost of each role (or `POST /seed`).
 2. `POST /clientes` and `POST /cotizaciones` with the scope as free text.
@@ -61,4 +85,5 @@ A sent quote is frozen; to edit it, move it back to `borrador`.
 ```bash
 pytest
 ```
-62 tests on SQLite; they never touch the Neon database.
+140 tests on SQLite; they never touch the Neon database and never send real emails (they read the codes from
+an in-memory outbox).
