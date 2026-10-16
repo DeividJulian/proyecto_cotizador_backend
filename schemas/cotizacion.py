@@ -33,6 +33,10 @@ class CambioEstado(BaseModel):
     estado: Estado
 
 
+class RespuestaCliente(BaseModel):
+    estado: Literal["aceptada", "rechazada"]
+
+
 class ItemCreate(BaseModel):
     nombre: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=120)]
     categoria: Annotated[str, StringConstraints(strip_whitespace=True, max_length=60)] = "Custom"

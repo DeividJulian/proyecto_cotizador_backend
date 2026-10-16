@@ -3,13 +3,15 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
-from routers.cotizaciones import exigir_borrador, obtener_cotizacion
+from models.usuario import Usuario
+from routers.cotizaciones import cotizacion_visible, exigir_borrador, obtener_cotizacion
+from seguridad import solo_admin, usuario_actual
 from services.propuesta import generar_propuesta
 
 router = APIRouter(prefix="/cotizaciones/{cotizacion_id}/propuesta", tags=["Commercial proposal"])
 
 
-@router.post("")
+@router.post("", dependencies=[Depends(solo_admin)])
 def generar(cotizacion_id: int, db: Session = Depends(get_db)):
     """Writes the commercial proposal in Markdown from the calculated data and saves it."""
     cot = obtener_cotizacion(db, cotizacion_id)
@@ -22,16 +24,16 @@ def generar(cotizacion_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("")
-def ver(cotizacion_id: int, db: Session = Depends(get_db)):
-    cot = obtener_cotizacion(db, cotizacion_id)
+def ver(cotizacion_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+    cot = cotizacion_visible(db, cotizacion_id, usuario)
     if not cot.propuesta:
         raise HTTPException(status_code=404, detail="This quote has no proposal yet")
     return {"cotizacion_id": cot.id, "propuesta": cot.propuesta}
 
 
 @router.get("/descargar", response_class=PlainTextResponse)
-def descargar(cotizacion_id: int, db: Session = Depends(get_db)):
-    cot = obtener_cotizacion(db, cotizacion_id)
+def descargar(cotizacion_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+    cot = cotizacion_visible(db, cotizacion_id, usuario)
     if not cot.propuesta:
         raise HTTPException(status_code=404, detail="This quote has no proposal yet")
     return PlainTextResponse(
