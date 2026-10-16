@@ -60,7 +60,8 @@ def anonimo():
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    """Cliente HTTP con sesión de administrador (las pruebas de negocio actúan como admin)."""
+    return entrar(ADMIN_EMAIL, "Administrador")
 
 
 @pytest.fixture

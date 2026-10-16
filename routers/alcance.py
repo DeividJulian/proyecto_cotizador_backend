@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from schemas.alcance import AlcanceEntrada
+from seguridad import solo_admin
 from services.alcance import analizar_alcance
 from services.estimacion import construir_items, resumen_estimacion
 
-router = APIRouter(prefix="/alcance", tags=["Scope"])
+router = APIRouter(prefix="/alcance", tags=["Scope"], dependencies=[Depends(solo_admin)])
 
 
 @router.post("/analizar")

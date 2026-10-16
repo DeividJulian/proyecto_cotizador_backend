@@ -5,8 +5,9 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.tarifa import Tarifa
 from schemas.tarifa import TarifaCreate, TarifaOut
+from seguridad import solo_admin
 
-router = APIRouter(prefix="/tarifas", tags=["Rates"])
+router = APIRouter(prefix="/tarifas", tags=["Rates"], dependencies=[Depends(solo_admin)])
 
 
 def rol_en_uso(db: Session, rol: str, excluir_id: int | None = None) -> bool:

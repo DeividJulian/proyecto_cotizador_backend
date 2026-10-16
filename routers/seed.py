@@ -2,9 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
+from seguridad import solo_admin
 from services.seed import borrar_todo, cargar_datos_demo, hay_datos
 
-router = APIRouter(tags=["Demo data"])
+router = APIRouter(tags=["Demo data"], dependencies=[Depends(solo_admin)])
 
 
 @router.post("/seed")

@@ -5,9 +5,10 @@ from database import get_db
 from models.cotizacion import ItemCotizacion
 from routers.cotizaciones import exigir_borrador, guardar_recalculada, obtener_cotizacion
 from schemas.cotizacion import CotizacionOut, ItemCreate, ItemOut, ItemUpdate
+from seguridad import solo_admin
 from services.estimacion import item_manual
 
-router = APIRouter(prefix="/cotizaciones/{cotizacion_id}/items", tags=["Quote items"])
+router = APIRouter(prefix="/cotizaciones/{cotizacion_id}/items", tags=["Quote items"], dependencies=[Depends(solo_admin)])
 
 
 def validar_distribucion(distribucion: dict[str, float] | None) -> None:

@@ -5,9 +5,11 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.cliente import Cliente
 from models.cotizacion import Cotizacion
+from models.usuario import Usuario
 from schemas.cliente import ClienteCreate, ClienteOut
+from seguridad import solo_admin
 
-router = APIRouter(prefix="/clientes", tags=["Clients"])
+router = APIRouter(prefix="/clientes", tags=["Clients"], dependencies=[Depends(solo_admin)])
 
 
 def correo_en_uso(db: Session, email: str, excluir_id: int | None = None) -> bool:
@@ -62,6 +64,8 @@ def eliminar_cliente(cliente_id: int, db: Session = Depends(get_db)):
     cliente = obtener_cliente(db, cliente_id)
     if db.query(Cotizacion).filter(Cotizacion.cliente_id == cliente_id).first():
         raise HTTPException(status_code=409, detail="Cannot delete: the client has quotes")
+    if db.query(Usuario).filter(Usuario.cliente_id == cliente_id).first():
+        raise HTTPException(status_code=409, detail="Cannot delete: the client has a user account")
     db.delete(cliente)
     db.commit()
     return {"mensaje": "Client deleted"}

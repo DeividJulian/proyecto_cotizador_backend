@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from models.cliente import Cliente
 from models.cotizacion import Cotizacion
 from models.tarifa import Tarifa
+from models.usuario import Usuario
 from services.catalogo import ROLES
 from services.cotizador import aplicar_analisis, recalcular
 from services.propuesta import generar_propuesta
@@ -46,6 +47,8 @@ def borrar_todo(db: Session) -> None:
     for c in db.query(Cotizacion).all():
         db.delete(c)
     db.flush()
+    # Las cuentas de usuario se conservan; se vuelven a ligar a su ficha de cliente al próximo login
+    db.query(Usuario).update({"cliente_id": None})
     db.query(Cliente).delete()
     db.query(Tarifa).delete()
     db.commit()

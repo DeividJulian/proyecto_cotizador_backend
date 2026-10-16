@@ -184,7 +184,7 @@ def test_me_sin_token_da_401(anonimo):
     assert anonimo.get("/auth/me").status_code == 401
 
 
-@pytest.mark.parametrize("token", ["basura", jwt.encode({"sub": "1"}, "otra-clave", algorithm="HS256")])
+@pytest.mark.parametrize("token", ["basura", jwt.encode({"sub": "1"}, "otra-clave-distinta-de-al-menos-32-bytes", algorithm="HS256")])
 def test_token_invalido_o_firmado_con_otra_clave_da_401(anonimo, token):
     entrar("ana@pyme.com")
     assert anonimo.get("/auth/me", headers={"Authorization": f"Bearer {token}"}).status_code == 401

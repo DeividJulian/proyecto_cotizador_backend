@@ -2,9 +2,10 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from database import get_db
+from seguridad import solo_admin
 from services.estadisticas import calcular_estadisticas
 
-router = APIRouter(tags=["Analytics"])
+router = APIRouter(tags=["Analytics"], dependencies=[Depends(solo_admin)])
 
 
 @router.get("/estadisticas")

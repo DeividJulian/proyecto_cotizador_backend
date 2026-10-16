@@ -4,9 +4,10 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.tarifa import Tarifa
 from schemas.finanzas import SimulacionEntrada
+from seguridad import solo_admin
 from services.finanzas import TarifaFaltante, calcular_financiero
 
-router = APIRouter(prefix="/finanzas", tags=["Finance"])
+router = APIRouter(prefix="/finanzas", tags=["Finance"], dependencies=[Depends(solo_admin)])
 
 
 @router.post("/simular")
