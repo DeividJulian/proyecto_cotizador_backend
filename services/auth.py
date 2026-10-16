@@ -1,82 +1,128 @@
-"""Inicio de sesión con Google y tokens de sesión JWT propios de la app."""
+"""Login sin contraseña: códigos de verificación de un solo uso por correo y tokens de sesión JWT."""
+import hashlib
+import hmac
+import math
+import secrets
 from datetime import datetime, timedelta, timezone
+from html import escape
 
 import jwt
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 import config
-from models.usuario import Usuario
+from models.usuario import CodigoVerificacion, Usuario
+from services.correo import enviar_correo
 from services.tarifas import crear_tarifas_iniciales
 
 ALGORITMO = "HS256"
-EMISORES_GOOGLE = {"accounts.google.com", "https://accounts.google.com"}
 
 
-class GoogleNoConfigurado(Exception):
+class EsperaCodigo(Exception):
+    def __init__(self, segundos: int):
+        self.segundos = segundos
+        super().__init__(f"Wait {segundos} seconds before requesting another code")
+
+
+class CodigoInvalido(Exception):
     pass
-
-
-class TokenGoogleInvalido(Exception):
-    pass
-
-
-class GoogleNoDisponible(Exception):
-    """No se pudieron descargar las llaves públicas de Google (red caída o timeout)."""
 
 
 def ahora() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def verificar_token_google(credencial: str) -> dict:
-    """Valida el ID token que entrega el botón de Google (firma, audiencia, emisor y vencimiento).
-
-    Devuelve sus datos: sub, email, email_verified, name, picture. Las pruebas reemplazan esta función.
-    """
-    if not config.GOOGLE_CLIENT_ID:
-        raise GoogleNoConfigurado("GOOGLE_CLIENT_ID is not configured")
-    from google.auth.exceptions import GoogleAuthError
-    from google.auth.transport import requests as google_requests
-    from google.oauth2 import id_token
-
-    try:
-        datos = id_token.verify_oauth2_token(credencial, google_requests.Request(), config.GOOGLE_CLIENT_ID)
-    except ValueError as e:  # firma, audiencia o vencimiento inválidos
-        raise TokenGoogleInvalido(str(e)) from e
-    except GoogleAuthError as e:  # no se pudo hablar con Google
-        raise GoogleNoDisponible(str(e)) from e
-    if datos.get("iss") not in EMISORES_GOOGLE:
-        raise TokenGoogleInvalido("Unexpected issuer")
-    return datos
+def _con_zona(fecha: datetime) -> datetime:
+    """SQLite devuelve las fechas sin zona horaria: se asumen en UTC."""
+    return fecha if fecha.tzinfo else fecha.replace(tzinfo=timezone.utc)
 
 
-def entrar_con_google(db: Session, datos: dict) -> Usuario:
-    """Busca o crea la cuenta a partir de los datos verificados de Google. Al crearla carga tarifas de mercado."""
-    if not datos.get("email") or not datos.get("email_verified"):
-        raise TokenGoogleInvalido("The Google account has no verified email")
-    sub = str(datos["sub"])
-    email = datos["email"].strip().lower()
-    nombre = (datos.get("name") or email.split("@")[0]).strip()
+def _hash(usuario_id: int, codigo: str) -> str:
+    return hmac.new(config.SECRET_KEY.encode(), f"{usuario_id}:{codigo}".encode(), hashlib.sha256).hexdigest()
 
-    usuario = db.query(Usuario).filter(Usuario.google_sub == sub).first()
-    if usuario is None:
-        usuario = db.query(Usuario).filter(func.lower(Usuario.email) == email).first()
-        if usuario is not None:
-            usuario.google_sub = sub
-    if usuario is None:
-        usuario = Usuario(google_sub=sub, email=email, nombre=nombre)
-        db.add(usuario)
-        db.flush()
+
+def normalizar_email(email: str) -> str:
+    return email.strip().lower()
+
+
+def buscar_usuario(db: Session, email: str) -> Usuario | None:
+    return db.query(Usuario).filter(func.lower(Usuario.email) == normalizar_email(email)).first()
+
+
+def _ultimo_codigo(db: Session, usuario: Usuario, solo_activos: bool = False) -> CodigoVerificacion | None:
+    consulta = db.query(CodigoVerificacion).filter(CodigoVerificacion.usuario_id == usuario.id)
+    if solo_activos:
+        consulta = consulta.filter(CodigoVerificacion.usado.is_(False))
+    return consulta.order_by(CodigoVerificacion.id.desc()).first()
+
+
+def emitir_codigo(db: Session, usuario: Usuario, proposito: str) -> str:
+    """Genera un código nuevo e invalida los anteriores. Respeta una espera mínima entre envíos."""
+    ultimo = _ultimo_codigo(db, usuario)
+    if ultimo:
+        espera = config.CODIGO_ESPERA_SEGUNDOS - (ahora() - _con_zona(ultimo.creado_en)).total_seconds()
+        if espera > 0:
+            raise EsperaCodigo(math.ceil(espera))
+
+    db.query(CodigoVerificacion).filter(
+        CodigoVerificacion.usuario_id == usuario.id, CodigoVerificacion.usado.is_(False)
+    ).update({"usado": True})
+    codigo = f"{secrets.randbelow(1_000_000):06d}"
+    db.add(
+        CodigoVerificacion(
+            usuario_id=usuario.id,
+            codigo_hash=_hash(usuario.id, codigo),
+            proposito=proposito,
+            expira_en=ahora() + timedelta(minutes=config.CODIGO_MINUTOS),
+        )
+    )
+    db.flush()
+    return codigo
+
+
+def verificar_codigo(db: Session, usuario: Usuario, codigo: str) -> None:
+    """Valida el último código activo. Lanza CodigoInvalido; el llamador debe guardar el intento fallido."""
+    registro = _ultimo_codigo(db, usuario, solo_activos=True)
+    if not registro:
+        raise CodigoInvalido("There is no active code: request a new one")
+    if _con_zona(registro.expira_en) < ahora():
+        registro.usado = True
+        raise CodigoInvalido("The code expired: request a new one")
+    if not hmac.compare_digest(registro.codigo_hash, _hash(usuario.id, codigo)):
+        registro.intentos += 1
+        restantes = config.CODIGO_INTENTOS - registro.intentos
+        if restantes <= 0:
+            registro.usado = True
+            raise CodigoInvalido("Incorrect code. Too many attempts: request a new one")
+        raise CodigoInvalido(f"Incorrect code. Attempts left: {restantes}")
+    registro.usado = True
+
+
+def completar_acceso(db: Session, usuario: Usuario) -> None:
+    """Tras un código correcto: la primera vez se activa la cuenta con las tarifas de mercado."""
+    if not usuario.verificado:
+        usuario.verificado = True
         crear_tarifas_iniciales(db, usuario)
-
-    usuario.email = email
-    usuario.nombre = nombre
-    usuario.foto_url = datos.get("picture")
     usuario.ultimo_acceso = ahora()
-    db.commit()
-    db.refresh(usuario)
-    return usuario
+
+
+def enviar_codigo(usuario: Usuario, codigo: str, proposito: str) -> None:
+    accion = "verify your account" if proposito == "registro" else "log in"
+    asunto = "Your AI Quoter verification code" if proposito == "registro" else "Your AI Quoter login code"
+    texto = (
+        f"Hi {usuario.nombre},\n\n"
+        f"Use this code to {accion}: {codigo}\n\n"
+        f"It expires in {config.CODIGO_MINUTOS} minutes. If you did not request it, ignore this email.\n\n"
+        "AI Quoter"
+    )
+    html = (
+        f"<p>Hi {escape(usuario.nombre)},</p>"
+        f"<p>Use this code to {accion}:</p>"
+        f'<p style="font-size:28px;font-weight:700;letter-spacing:6px">{codigo}</p>'
+        f"<p>It expires in {config.CODIGO_MINUTOS} minutes. If you did not request it, ignore this email.</p>"
+        "<p>AI Quoter</p>"
+    )
+    enviar_correo(usuario.email, asunto, texto, html)
 
 
 def crear_token(usuario: Usuario, horas: float | None = None) -> str:

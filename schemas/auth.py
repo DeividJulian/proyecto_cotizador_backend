@@ -1,13 +1,24 @@
 from datetime import datetime
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, StringConstraints
+from pydantic import BaseModel, ConfigDict, EmailStr, StringConstraints
 
-CredencialGoogle = Annotated[str, StringConstraints(strip_whitespace=True, min_length=20, max_length=5000)]
+Nombre = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=100)]
+Codigo = Annotated[str, StringConstraints(strip_whitespace=True, pattern=r"^\d{6}$")]
 
 
-class LoginGoogle(BaseModel):
-    credencial: CredencialGoogle  # ID token que entrega el botón "Continuar con Google"
+class RegistroEntrada(BaseModel):
+    nombre: Nombre
+    email: EmailStr
+
+
+class LoginEntrada(BaseModel):
+    email: EmailStr
+
+
+class VerificarEntrada(BaseModel):
+    email: EmailStr
+    codigo: Codigo
 
 
 class UsuarioOut(BaseModel):
@@ -16,7 +27,6 @@ class UsuarioOut(BaseModel):
     id: int
     nombre: str
     email: str
-    foto_url: str | None
     creado_en: datetime
     ultimo_acceso: datetime | None
 

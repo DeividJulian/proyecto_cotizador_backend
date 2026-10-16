@@ -7,7 +7,7 @@ from database import get_db
 from models.usuario import Usuario
 from services.auth import leer_token
 
-bearer = HTTPBearer(auto_error=False, description="Token from /auth/google")
+bearer = HTTPBearer(auto_error=False, description="Token from /auth/verificar")
 
 
 def usuario_actual(
@@ -18,7 +18,7 @@ def usuario_actual(
         raise HTTPException(status_code=401, detail="You must log in", headers={"WWW-Authenticate": "Bearer"})
     usuario_id = leer_token(credenciales.credentials)
     usuario = db.get(Usuario, usuario_id) if usuario_id is not None else None
-    if usuario is None:
+    if usuario is None or not usuario.verificado:
         raise HTTPException(
             status_code=401, detail="Session expired or invalid: log in again", headers={"WWW-Authenticate": "Bearer"}
         )

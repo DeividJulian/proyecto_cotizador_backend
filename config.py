@@ -10,5 +10,17 @@ load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY") or secrets.token_urlsafe(32)
 TOKEN_HORAS = int(os.getenv("TOKEN_HORAS", "72"))
 
-# ID de cliente OAuth de Google (termina en .apps.googleusercontent.com). Es público: el front usa el mismo.
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
+# Códigos de verificación enviados por correo
+CODIGO_MINUTOS = int(os.getenv("CODIGO_MINUTOS", "10"))
+CODIGO_INTENTOS = int(os.getenv("CODIGO_INTENTOS", "5"))
+CODIGO_ESPERA_SEGUNDOS = int(os.getenv("CODIGO_ESPERA_SEGUNDOS", "30"))
+
+# Envío de correos: consola | memoria | smtp | brevo
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "consola").strip().lower()
+EMAIL_FROM = os.getenv("EMAIL_FROM", "no-reply@cotizador.local")
+EMAIL_FROM_NAME = os.getenv("EMAIL_FROM_NAME", "AI Quoter")
+BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
+SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
