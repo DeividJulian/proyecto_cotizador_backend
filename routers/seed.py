@@ -2,19 +2,27 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
-from seguridad import solo_admin
-from services.seed import borrar_todo, cargar_datos_demo, hay_datos
+from models.usuario import Usuario
+from seguridad import usuario_actual
+from services.finanzas import TarifaFaltante
+from services.seed import borrar_cotizaciones, cargar_ejemplos, tiene_cotizaciones
 
-router = APIRouter(tags=["Demo data"], dependencies=[Depends(solo_admin)])
+router = APIRouter(tags=["Demo data"])
 
 
 @router.post("/seed")
-def cargar_seed(reiniciar: bool = False, db: Session = Depends(get_db)):
-    if hay_datos(db):
+def cargar_seed(reiniciar: bool = False, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+    """Loads example quotes into your account. With reiniciar=true it first deletes all your quotes."""
+    if tiene_cotizaciones(db, usuario.id):
         if not reiniciar:
             raise HTTPException(
                 status_code=409,
-                detail="Data is already loaded. Use /seed?reiniciar=true to delete it and load the demo data.",
+                detail="You already have quotes. Use /seed?reiniciar=true to delete them and load the examples.",
             )
-        borrar_todo(db)
-    return {"mensaje": "Demo data loaded", "resumen": cargar_datos_demo(db)}
+        borrar_cotizaciones(db, usuario.id)
+    try:
+        resumen = cargar_ejemplos(db, usuario)
+    except TarifaFaltante as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=f"{e}. Restore the market rates in My rates.")
+    return {"mensaje": "Example quotes loaded", "resumen": resumen}

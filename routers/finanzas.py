@@ -2,18 +2,19 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models.tarifa import Tarifa
+from models.usuario import Usuario
 from schemas.finanzas import SimulacionEntrada
-from seguridad import solo_admin
+from seguridad import usuario_actual
 from services.finanzas import TarifaFaltante, calcular_financiero
+from services.tarifas import tarifas_de
 
-router = APIRouter(prefix="/finanzas", tags=["Finance"], dependencies=[Depends(solo_admin)])
+router = APIRouter(prefix="/finanzas", tags=["Finance"])
 
 
 @router.post("/simular")
-def simular(entrada: SimulacionEntrada, db: Session = Depends(get_db)):
-    """Prices a set of hours per role using the registered rates (nothing is saved)."""
-    tarifas = {t.rol: t.valor_hora for t in db.query(Tarifa).all()}
+def simular(entrada: SimulacionEntrada, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+    """Prices a set of hours per role using your rates (nothing is saved)."""
+    tarifas = tarifas_de(db, usuario.id)
     try:
         return calcular_financiero(
             entrada.horas_por_rol,

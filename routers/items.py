@@ -3,12 +3,13 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models.cotizacion import ItemCotizacion
+from models.usuario import Usuario
 from routers.cotizaciones import exigir_borrador, guardar_recalculada, obtener_cotizacion
 from schemas.cotizacion import CotizacionOut, ItemCreate, ItemOut, ItemUpdate
-from seguridad import solo_admin
+from seguridad import usuario_actual
 from services.estimacion import item_manual
 
-router = APIRouter(prefix="/cotizaciones/{cotizacion_id}/items", tags=["Quote items"], dependencies=[Depends(solo_admin)])
+router = APIRouter(prefix="/cotizaciones/{cotizacion_id}/items", tags=["Quote items"])
 
 
 def validar_distribucion(distribucion: dict[str, float] | None) -> None:
@@ -19,13 +20,13 @@ def validar_distribucion(distribucion: dict[str, float] | None) -> None:
 
 
 @router.get("", response_model=list[ItemOut])
-def listar_items(cotizacion_id: int, db: Session = Depends(get_db)):
-    return obtener_cotizacion(db, cotizacion_id).items
+def listar_items(cotizacion_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+    return obtener_cotizacion(db, cotizacion_id, usuario).items
 
 
 @router.post("", response_model=CotizacionOut, status_code=201)
-def agregar_item(cotizacion_id: int, datos: ItemCreate, db: Session = Depends(get_db)):
-    cot = obtener_cotizacion(db, cotizacion_id)
+def agregar_item(cotizacion_id: int, datos: ItemCreate, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+    cot = obtener_cotizacion(db, cotizacion_id, usuario)
     exigir_borrador(cot)
     validar_distribucion(datos.distribucion)
     cot.items.append(
@@ -42,9 +43,9 @@ def _buscar_item(cot, item_id: int) -> ItemCotizacion:
 
 
 @router.put("/{item_id}", response_model=CotizacionOut)
-def actualizar_item(cotizacion_id: int, item_id: int, datos: ItemUpdate, db: Session = Depends(get_db)):
+def actualizar_item(cotizacion_id: int, item_id: int, datos: ItemUpdate, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
     """Adjusts an item. If it came from the AI it becomes manual, so a new analysis won't overwrite it."""
-    cot = obtener_cotizacion(db, cotizacion_id)
+    cot = obtener_cotizacion(db, cotizacion_id, usuario)
     exigir_borrador(cot)
     item = _buscar_item(cot, item_id)
     validar_distribucion(datos.distribucion)
@@ -64,8 +65,8 @@ def actualizar_item(cotizacion_id: int, item_id: int, datos: ItemUpdate, db: Ses
 
 
 @router.delete("/{item_id}", response_model=CotizacionOut)
-def eliminar_item(cotizacion_id: int, item_id: int, db: Session = Depends(get_db)):
-    cot = obtener_cotizacion(db, cotizacion_id)
+def eliminar_item(cotizacion_id: int, item_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+    cot = obtener_cotizacion(db, cotizacion_id, usuario)
     exigir_borrador(cot)
     cot.items.remove(_buscar_item(cot, item_id))
     return guardar_recalculada(db, cot)

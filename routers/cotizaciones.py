@@ -4,38 +4,26 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models.cliente import Cliente
 from models.cotizacion import Cotizacion
 from models.usuario import Usuario
-from schemas.cotizacion import (
-    CambioEstado,
-    CotizacionCreate,
-    CotizacionOut,
-    CotizacionResumen,
-    CotizacionUpdate,
-    RespuestaCliente,
-)
-from seguridad import solo_admin, usuario_actual
+from schemas.cotizacion import CambioEstado, CotizacionCreate, CotizacionOut, CotizacionResumen, CotizacionUpdate
+from seguridad import usuario_actual
 from services.cotizador import TRANSICIONES, aplicar_analisis, recalcular
 from services.finanzas import TarifaFaltante
 from services.similitud import similitud_coseno
 
 logger = logging.getLogger("cotizador.api")
 router = APIRouter(prefix="/cotizaciones", tags=["Quotes"])
-SOLO_ADMIN = [Depends(solo_admin)]
 
 
-def obtener_cotizacion(db: Session, cotizacion_id: int) -> Cotizacion:
-    cot = db.query(Cotizacion).filter(Cotizacion.id == cotizacion_id).first()
+def obtener_cotizacion(db: Session, cotizacion_id: int, usuario: Usuario) -> Cotizacion:
+    """Solo el dueño puede ver o tocar una cotización; para cualquier otro usuario no existe (404)."""
+    cot = (
+        db.query(Cotizacion)
+        .filter(Cotizacion.id == cotizacion_id, Cotizacion.usuario_id == usuario.id)
+        .first()
+    )
     if not cot:
-        raise HTTPException(status_code=404, detail="Quote not found")
-    return cot
-
-
-def cotizacion_visible(db: Session, cotizacion_id: int, usuario: Usuario) -> Cotizacion:
-    """El admin ve todas; un cliente solo las suyas que ya le enviaron (nunca los borradores)."""
-    cot = obtener_cotizacion(db, cotizacion_id)
-    if usuario.rol != "admin" and (cot.cliente_id != usuario.cliente_id or cot.estado == "borrador"):
         raise HTTPException(status_code=404, detail="Quote not found")
     return cot
 
@@ -51,34 +39,15 @@ def guardar_recalculada(db: Session, cot: Cotizacion) -> Cotizacion:
         recalcular(db, cot)
     except TarifaFaltante as e:
         db.rollback()
-        raise HTTPException(status_code=409, detail=f"{e}. Register it at /tarifas.")
+        raise HTTPException(status_code=409, detail=f"{e}. Add it in My rates.")
     db.commit()
     db.refresh(cot)
     return cot
 
 
-def resumen(cot: Cotizacion) -> dict:
-    est, fin = cot.estimacion or {}, cot.financiero or {}
-    return {
-        "id": cot.id,
-        "titulo": cot.titulo,
-        "cliente": cot.cliente.nombre,
-        "estado": cot.estado,
-        "modulos": sum(1 for i in cot.items if i.categoria != "Cross-cutting"),
-        "horas_esperadas": est.get("horas_esperadas", 0),
-        "rango_horas": [est.get("horas_optimista", 0), est.get("horas_pesimista", 0)],
-        "confianza": est.get("confianza"),
-        "duracion_semanas": fin.get("duracion_semanas", 0),
-        "total": cot.total,
-        "tiene_propuesta": bool(cot.propuesta),
-    }
-
-
-@router.post("", response_model=CotizacionOut, status_code=201, dependencies=SOLO_ADMIN)
-def crear_cotizacion(datos: CotizacionCreate, db: Session = Depends(get_db)):
-    if not db.query(Cliente).filter(Cliente.id == datos.cliente_id).first():
-        raise HTTPException(status_code=404, detail="Client not found")
-    cot = Cotizacion(**datos.model_dump())
+@router.post("", response_model=CotizacionOut, status_code=201)
+def crear_cotizacion(datos: CotizacionCreate, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+    cot = Cotizacion(usuario_id=usuario.id, **datos.model_dump())
     db.add(cot)
     db.commit()
     db.refresh(cot)
@@ -88,49 +57,48 @@ def crear_cotizacion(datos: CotizacionCreate, db: Session = Depends(get_db)):
 @router.get("", response_model=list[CotizacionResumen])
 def listar_cotizaciones(
     estado: str | None = None,
-    cliente_id: int | None = None,
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(usuario_actual),
 ):
-    """Admin: all quotes. Client: only their quotes that were already sent."""
-    consulta = db.query(Cotizacion)
-    if usuario.rol != "admin":
-        consulta = consulta.filter(Cotizacion.cliente_id == usuario.cliente_id, Cotizacion.estado != "borrador")
+    consulta = db.query(Cotizacion).filter(Cotizacion.usuario_id == usuario.id)
     if estado:
         consulta = consulta.filter(Cotizacion.estado == estado)
-    if cliente_id:
-        consulta = consulta.filter(Cotizacion.cliente_id == cliente_id)
     return consulta.order_by(Cotizacion.id.desc()).all()
 
 
-@router.get("/{cotizacion_id}", response_model=CotizacionOut, dependencies=SOLO_ADMIN)
-def ver_cotizacion(cotizacion_id: int, db: Session = Depends(get_db)):
-    return obtener_cotizacion(db, cotizacion_id)
+@router.get("/{cotizacion_id}", response_model=CotizacionOut)
+def ver_cotizacion(cotizacion_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+    return obtener_cotizacion(db, cotizacion_id, usuario)
 
 
-@router.put("/{cotizacion_id}", response_model=CotizacionOut, dependencies=SOLO_ADMIN)
-def actualizar_cotizacion(cotizacion_id: int, datos: CotizacionUpdate, db: Session = Depends(get_db)):
-    cot = obtener_cotizacion(db, cotizacion_id)
+@router.put("/{cotizacion_id}", response_model=CotizacionOut)
+def actualizar_cotizacion(
+    cotizacion_id: int, datos: CotizacionUpdate, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)
+):
+    cot = obtener_cotizacion(db, cotizacion_id, usuario)
     exigir_borrador(cot)
     for campo, valor in datos.model_dump(exclude_unset=True).items():
-        if valor is not None:
-            setattr(cot, campo, valor)
+        if valor is None:
+            continue
+        if campo.startswith("cliente_"):
+            valor = valor or None  # una cadena vacía borra el dato opcional
+        setattr(cot, campo, valor)
     return guardar_recalculada(db, cot)
 
 
-@router.delete("/{cotizacion_id}", dependencies=SOLO_ADMIN)
-def eliminar_cotizacion(cotizacion_id: int, db: Session = Depends(get_db)):
-    cot = obtener_cotizacion(db, cotizacion_id)
+@router.delete("/{cotizacion_id}")
+def eliminar_cotizacion(cotizacion_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+    cot = obtener_cotizacion(db, cotizacion_id, usuario)
     exigir_borrador(cot)
     db.delete(cot)
     db.commit()
     return {"mensaje": "Quote deleted"}
 
 
-@router.post("/{cotizacion_id}/analizar", response_model=CotizacionOut, dependencies=SOLO_ADMIN)
-def analizar_cotizacion(cotizacion_id: int, db: Session = Depends(get_db)):
+@router.post("/{cotizacion_id}/analizar", response_model=CotizacionOut)
+def analizar_cotizacion(cotizacion_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
     """Runs the AI: detects modules, estimates hours with PERT and calculates the price."""
-    cot = obtener_cotizacion(db, cotizacion_id)
+    cot = obtener_cotizacion(db, cotizacion_id, usuario)
     exigir_borrador(cot)
     analisis = aplicar_analisis(cot)
     if not analisis["modulos"]:
@@ -142,12 +110,29 @@ def analizar_cotizacion(cotizacion_id: int, db: Session = Depends(get_db)):
 @router.get("/{cotizacion_id}/resumen")
 def resumen_cotizacion(cotizacion_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
     """Compact view for cards and dashboards: totals, hours, duration and confidence."""
-    return resumen(cotizacion_visible(db, cotizacion_id, usuario))
+    cot = obtener_cotizacion(db, cotizacion_id, usuario)
+    est, fin = cot.estimacion or {}, cot.financiero or {}
+    return {
+        "id": cot.id,
+        "titulo": cot.titulo,
+        "cliente": cot.cliente_nombre,
+        "estado": cot.estado,
+        "modulos": sum(1 for i in cot.items if i.categoria != "Cross-cutting"),
+        "horas_esperadas": est.get("horas_esperadas", 0),
+        "rango_horas": [est.get("horas_optimista", 0), est.get("horas_pesimista", 0)],
+        "confianza": est.get("confianza"),
+        "duracion_semanas": fin.get("duracion_semanas", 0),
+        "total": cot.total,
+        "tiene_propuesta": bool(cot.propuesta),
+    }
 
 
-@router.post("/{cotizacion_id}/estado", response_model=CotizacionOut, dependencies=SOLO_ADMIN)
-def cambiar_estado(cotizacion_id: int, datos: CambioEstado, db: Session = Depends(get_db)):
-    cot = obtener_cotizacion(db, cotizacion_id)
+@router.post("/{cotizacion_id}/estado", response_model=CotizacionOut)
+def cambiar_estado(
+    cotizacion_id: int, datos: CambioEstado, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)
+):
+    """Tracks the proposal: draft → sent to your client → accepted or rejected."""
+    cot = obtener_cotizacion(db, cotizacion_id, usuario)
     if datos.estado not in TRANSICIONES[cot.estado]:
         permitidos = ", ".join(sorted(TRANSICIONES[cot.estado])) or "none (final state)"
         raise HTTPException(status_code=409, detail=f"Cannot move from '{cot.estado}' to '{datos.estado}'. Allowed: {permitidos}")
@@ -160,29 +145,16 @@ def cambiar_estado(cotizacion_id: int, datos: CambioEstado, db: Session = Depend
     return cot
 
 
-@router.post("/{cotizacion_id}/respuesta")
-def responder_cotizacion(
+@router.get("/{cotizacion_id}/similares")
+def cotizaciones_similares(
     cotizacion_id: int,
-    datos: RespuestaCliente,
+    limite: int = Query(3, ge=1, le=10),
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(usuario_actual),
 ):
-    """The client accepts or rejects a quote that was sent to them."""
-    cot = cotizacion_visible(db, cotizacion_id, usuario)
-    if cot.estado != "enviada":
-        raise HTTPException(status_code=409, detail=f"The quote is '{cot.estado}': only sent quotes can be answered")
-    cot.estado = datos.estado
-    db.commit()
-    db.refresh(cot)
-    logger.info("Quote %s -> %s by user %s", cot.id, cot.estado, usuario.id)
-    return resumen(cot)
-
-
-@router.get("/{cotizacion_id}/similares", dependencies=SOLO_ADMIN)
-def cotizaciones_similares(cotizacion_id: int, limite: int = Query(3, ge=1, le=10), db: Session = Depends(get_db)):
-    """Previous quotes with a similar scope (TF-IDF + cosine): useful as a price reference."""
-    cot = obtener_cotizacion(db, cotizacion_id)
-    otras = db.query(Cotizacion).filter(Cotizacion.id != cot.id).all()
+    """Your previous quotes with a similar scope (TF-IDF + cosine): useful as a price reference."""
+    cot = obtener_cotizacion(db, cotizacion_id, usuario)
+    otras = db.query(Cotizacion).filter(Cotizacion.usuario_id == usuario.id, Cotizacion.id != cot.id).all()
     corpus = [o.descripcion_alcance for o in otras]
     puntuadas = [
         {

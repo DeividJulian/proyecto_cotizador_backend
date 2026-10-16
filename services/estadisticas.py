@@ -7,8 +7,9 @@ from models.cotizacion import Cotizacion, ItemCotizacion
 ESTADOS = ["borrador", "enviada", "aceptada", "rechazada"]
 
 
-def calcular_estadisticas(db: Session) -> dict:
-    cotizaciones = db.query(Cotizacion).all()
+def calcular_estadisticas(db: Session, usuario_id: int) -> dict:
+    """Tablero personal: solo cuenta las cotizaciones del usuario."""
+    cotizaciones = db.query(Cotizacion).filter(Cotizacion.usuario_id == usuario_id).all()
     por_estado = {e: 0 for e in ESTADOS}
     valor = {e: 0 for e in ESTADOS}
     horas_rol: Counter = Counter()
@@ -21,7 +22,10 @@ def calcular_estadisticas(db: Session) -> dict:
     cerradas = por_estado["aceptada"] + por_estado["rechazada"]
     con_total = [c.total for c in cotizaciones if c.total > 0]
     modulos = Counter(
-        nombre for (nombre,) in db.query(ItemCotizacion.nombre).filter(ItemCotizacion.categoria != "Cross-cutting")
+        nombre
+        for (nombre,) in db.query(ItemCotizacion.nombre)
+        .join(Cotizacion, ItemCotizacion.cotizacion_id == Cotizacion.id)
+        .filter(Cotizacion.usuario_id == usuario_id, ItemCotizacion.categoria != "Cross-cutting")
     )
     return {
         "total_cotizaciones": len(cotizaciones),

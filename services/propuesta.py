@@ -23,14 +23,16 @@ def generar_propuesta(cot, fecha: datetime | None = None) -> str:
     fin = fecha + timedelta(days=VIGENCIA_DIAS)
     fin_ = cot.financiero
     est = cot.estimacion
-    cliente = cot.cliente
     desarrollo = [i for i in cot.items if i.categoria != "Cross-cutting"]
     transversales = [i for i in cot.items if i.categoria == "Cross-cutting"]
+    para = " · ".join(p for p in (cot.cliente_nombre, cot.cliente_empresa) if p)
 
     L: list[str] = []
     L += [f"# Commercial proposal: {cot.titulo}", ""]
+    if para:
+        L.append(f"**Client:** {para}")
     L += [
-        f"**Client:** {cliente.nombre}" + (f" ({cliente.empresa})" if cliente.empresa else ""),
+        f"**Prepared by:** {cot.usuario.nombre}",
         f"**Date:** {fecha:%d/%m/%Y}",
         f"**Valid until:** {fin:%d/%m/%Y} ({VIGENCIA_DIAS} days)",
         f"**Reference:** QT-{cot.id:04d}",

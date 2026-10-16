@@ -6,3 +6,5 @@ pydantic
 email-validator
 python-dotenv
 PyJWT
+google-auth
+requests

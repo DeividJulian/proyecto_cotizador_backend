@@ -1,31 +1,13 @@
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, EmailStr, StringConstraints
+from pydantic import BaseModel, ConfigDict, StringConstraints
 
-from schemas.cliente import Corto, Nombre
-
-Codigo = Annotated[str, StringConstraints(strip_whitespace=True, pattern=r"^\d{6}$")]
-Rol = Literal["admin", "cliente"]
+CredencialGoogle = Annotated[str, StringConstraints(strip_whitespace=True, min_length=20, max_length=5000)]
 
 
-class RegistroEntrada(BaseModel):
-    nombre: Nombre
-    empresa: Corto | None = None
-    email: EmailStr
-
-
-class LoginEntrada(BaseModel):
-    email: EmailStr
-
-
-class VerificarEntrada(BaseModel):
-    email: EmailStr
-    codigo: Codigo
-
-
-class CambioRol(BaseModel):
-    rol: Rol
+class LoginGoogle(BaseModel):
+    credencial: CredencialGoogle  # ID token que entrega el botón "Continuar con Google"
 
 
 class UsuarioOut(BaseModel):
@@ -34,10 +16,7 @@ class UsuarioOut(BaseModel):
     id: int
     nombre: str
     email: str
-    empresa: str | None
-    rol: str
-    verificado: bool
-    cliente_id: int | None
+    foto_url: str | None
     creado_en: datetime
     ultimo_acceso: datetime | None
 

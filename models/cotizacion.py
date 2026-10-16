@@ -14,8 +14,10 @@ class Cotizacion(Base):
     __tablename__ = "cotizaciones"
 
     id = Column(Integer, primary_key=True, index=True)
-    cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=False)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, index=True)  # dueño de la cotización
     titulo = Column(String, nullable=False)
+    cliente_nombre = Column(String, nullable=True)  # opcional: para quién es el proyecto
+    cliente_empresa = Column(String, nullable=True)
     descripcion_alcance = Column(Text, nullable=False)
     estado = Column(String, nullable=False, default="borrador")
 
@@ -33,7 +35,7 @@ class Cotizacion(Base):
     creada_en = Column(DateTime(timezone=True), nullable=False, default=ahora)
     actualizada_en = Column(DateTime(timezone=True), nullable=False, default=ahora, onupdate=ahora)
 
-    cliente = relationship("Cliente")
+    usuario = relationship("Usuario")
     items = relationship("ItemCotizacion", cascade="all, delete-orphan", order_by="ItemCotizacion.id")
 
 

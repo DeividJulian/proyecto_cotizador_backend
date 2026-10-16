@@ -6,14 +6,16 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from schemas.alcance import TextoAlcance
 
 Titulo = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=150)]
+TextoCorto = Annotated[str, StringConstraints(strip_whitespace=True, max_length=100)]
 Estado = Literal["borrador", "enviada", "aceptada", "rechazada"]
 Complejidad = Literal["baja", "media", "alta"]
 
 
 class CotizacionCreate(BaseModel):
-    cliente_id: int
     titulo: Titulo
     descripcion_alcance: TextoAlcance
+    cliente_nombre: TextoCorto | None = None  # opcional: para quién es el proyecto
+    cliente_empresa: TextoCorto | None = None
     margen_pct: float = Field(default=30.0, ge=0, le=200)
     contingencia_pct: float = Field(default=10.0, ge=0, le=100)
     descuento_pct: float = Field(default=0.0, ge=0, le=50)
@@ -23,6 +25,8 @@ class CotizacionCreate(BaseModel):
 class CotizacionUpdate(BaseModel):
     titulo: Titulo | None = None
     descripcion_alcance: TextoAlcance | None = None
+    cliente_nombre: TextoCorto | None = None
+    cliente_empresa: TextoCorto | None = None
     margen_pct: float | None = Field(default=None, ge=0, le=200)
     contingencia_pct: float | None = Field(default=None, ge=0, le=100)
     descuento_pct: float | None = Field(default=None, ge=0, le=50)
@@ -31,10 +35,6 @@ class CotizacionUpdate(BaseModel):
 
 class CambioEstado(BaseModel):
     estado: Estado
-
-
-class RespuestaCliente(BaseModel):
-    estado: Literal["aceptada", "rechazada"]
 
 
 class ItemCreate(BaseModel):
@@ -72,7 +72,8 @@ class CotizacionResumen(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    cliente_id: int
+    cliente_nombre: str | None
+    cliente_empresa: str | None
     titulo: str
     estado: str
     total: int

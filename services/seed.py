@@ -1,68 +1,49 @@
+"""Cotizaciones de ejemplo para que un usuario nuevo vea cómo funciona la app con datos reales."""
 from sqlalchemy.orm import Session
 
-from models.cliente import Cliente
 from models.cotizacion import Cotizacion
-from models.tarifa import Tarifa
 from models.usuario import Usuario
-from services.catalogo import ROLES
 from services.cotizador import aplicar_analisis, recalcular
 from services.propuesta import generar_propuesta
 
-# Costo interno por hora (COP) de cada rol
-TARIFAS = dict(zip(ROLES, [55_000, 50_000, 45_000, 40_000, 60_000, 65_000]))
-
-CLIENTES = [
-    ("Marcela Duarte", "Café Andino S.A.S.", "marcela@cafeandino.example.com", "3001234567"),
-    ("Julián Vargas", "Clínica Dental Sonríe", "julian@sonrie.example.com", "3109876543"),
-    ("Paola Restrepo", "Boutique Aurora", "paola@aurora.example.com", None),
-]
-
-# (índice de cliente, título, alcance, estado final)
-COTIZACIONES = [
-    (0, "Tienda en línea de café",
+# (para quién es, empresa, título, alcance, estado final)
+EJEMPLOS = [
+    ("Marcela Duarte", "Café Andino S.A.S.", "Tienda en línea de café",
      "Necesitamos una tienda en línea con catálogo de productos, carrito de compras y pagos en línea con tarjeta y PSE. "
      "Debe tener un panel de administración para gestionar pedidos, facturación electrónica y reportes de ventas. "
      "Los clientes deben iniciar sesión y recibir notificaciones por correo de cada pedido.",
      "aceptada"),
-    (1, "Sistema de citas para clínica",
+    ("Julián Vargas", "Clínica Dental Sonríe", "Sistema de citas para clínica",
      "Sistema de reservas de citas con calendario, usuarios y roles para recepcionistas y doctores, "
      "notificaciones por WhatsApp y correo, y reportes mensuales. Un sitio web informativo.",
      "enviada"),
-    (2, "App móvil y catálogo para boutique",
+    ("Paola Restrepo", "Boutique Aurora", "App móvil y catálogo para boutique",
      "Aplicación móvil para mostrar el catálogo de productos, con login de clientes, carrito de compras, "
      "pagos en línea y un panel de administración. Integraciones con redes sociales.",
      "rechazada"),
-    (0, "Plataforma de reportes y chat con clientes",
+    (None, None, "Plataforma de reportes y chat con clientes",
      "Un portal avanzado de reportes con tablero de indicadores en tiempo real y chat de soporte con clientes. "
      "Autenticación con roles y permisos, y carga de archivos.",
      "borrador"),
 ]
 
 
-def hay_datos(db: Session) -> bool:
-    return any(db.query(m).first() for m in (Cliente, Tarifa, Cotizacion))
+def tiene_cotizaciones(db: Session, usuario_id: int) -> bool:
+    return db.query(Cotizacion).filter(Cotizacion.usuario_id == usuario_id).first() is not None
 
 
-def borrar_todo(db: Session) -> None:
-    for c in db.query(Cotizacion).all():
+def borrar_cotizaciones(db: Session, usuario_id: int) -> None:
+    for c in db.query(Cotizacion).filter(Cotizacion.usuario_id == usuario_id).all():
         db.delete(c)
     db.flush()
-    # Las cuentas de usuario se conservan; se vuelven a ligar a su ficha de cliente al próximo login
-    db.query(Usuario).update({"cliente_id": None})
-    db.query(Cliente).delete()
-    db.query(Tarifa).delete()
-    db.commit()
 
 
-def cargar_datos_demo(db: Session) -> dict:
-    for rol, valor in TARIFAS.items():
-        db.add(Tarifa(rol=rol, valor_hora=valor))
-    clientes = [Cliente(nombre=n, empresa=e, email=m, telefono=t) for n, e, m, t in CLIENTES]
-    db.add_all(clientes)
-    db.flush()
-
-    for indice, titulo, alcance, estado in COTIZACIONES:
-        cot = Cotizacion(cliente_id=clientes[indice].id, titulo=titulo, descripcion_alcance=alcance)
+def cargar_ejemplos(db: Session, usuario: Usuario) -> dict:
+    """Crea las cotizaciones de ejemplo con las tarifas del usuario. Lanza TarifaFaltante si borró alguna."""
+    for nombre, empresa, titulo, alcance, estado in EJEMPLOS:
+        cot = Cotizacion(
+            usuario_id=usuario.id, titulo=titulo, descripcion_alcance=alcance, cliente_nombre=nombre, cliente_empresa=empresa
+        )
         db.add(cot)
         db.flush()
         aplicar_analisis(cot)
@@ -72,4 +53,4 @@ def cargar_datos_demo(db: Session) -> dict:
             cot.propuesta = generar_propuesta(cot)
             cot.estado = estado
     db.commit()
-    return {"tarifas": len(TARIFAS), "clientes": len(CLIENTES), "cotizaciones": len(COTIZACIONES)}
+    return {"cotizaciones": len(EJEMPLOS)}

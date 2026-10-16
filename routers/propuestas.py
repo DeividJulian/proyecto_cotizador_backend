@@ -4,17 +4,17 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models.usuario import Usuario
-from routers.cotizaciones import cotizacion_visible, exigir_borrador, obtener_cotizacion
-from seguridad import solo_admin, usuario_actual
+from routers.cotizaciones import exigir_borrador, obtener_cotizacion
+from seguridad import usuario_actual
 from services.propuesta import generar_propuesta
 
 router = APIRouter(prefix="/cotizaciones/{cotizacion_id}/propuesta", tags=["Commercial proposal"])
 
 
-@router.post("", dependencies=[Depends(solo_admin)])
-def generar(cotizacion_id: int, db: Session = Depends(get_db)):
+@router.post("")
+def generar(cotizacion_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
     """Writes the commercial proposal in Markdown from the calculated data and saves it."""
-    cot = obtener_cotizacion(db, cotizacion_id)
+    cot = obtener_cotizacion(db, cotizacion_id, usuario)
     exigir_borrador(cot)
     if not cot.items or not cot.financiero:
         raise HTTPException(status_code=409, detail="Analyze the quote before generating the proposal")
@@ -25,7 +25,7 @@ def generar(cotizacion_id: int, db: Session = Depends(get_db)):
 
 @router.get("")
 def ver(cotizacion_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
-    cot = cotizacion_visible(db, cotizacion_id, usuario)
+    cot = obtener_cotizacion(db, cotizacion_id, usuario)
     if not cot.propuesta:
         raise HTTPException(status_code=404, detail="This quote has no proposal yet")
     return {"cotizacion_id": cot.id, "propuesta": cot.propuesta}
@@ -33,7 +33,7 @@ def ver(cotizacion_id: int, db: Session = Depends(get_db), usuario: Usuario = De
 
 @router.get("/descargar", response_class=PlainTextResponse)
 def descargar(cotizacion_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
-    cot = cotizacion_visible(db, cotizacion_id, usuario)
+    cot = obtener_cotizacion(db, cotizacion_id, usuario)
     if not cot.propuesta:
         raise HTTPException(status_code=404, detail="This quote has no proposal yet")
     return PlainTextResponse(
