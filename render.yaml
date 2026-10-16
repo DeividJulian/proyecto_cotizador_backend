@@ -12,5 +12,11 @@ services:
         sync: false # cadena de Neon con postgresql+psycopg://
       - key: SECRET_KEY
         generateValue: true
-      - key: GOOGLE_CLIENT_ID
-        sync: false # termina en .apps.googleusercontent.com
+      - key: EMAIL_BACKEND
+        sync: false # brevo; sin valor usa "consola" y el código aparece en los logs de Render
+      - key: EMAIL_FROM
+        sync: false # remitente verificado en Brevo
+      - key: EMAIL_FROM_NAME
+        value: AI Quoter
+      - key: BREVO_API_KEY
+        sync: false
