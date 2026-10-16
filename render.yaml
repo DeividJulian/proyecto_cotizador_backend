@@ -15,7 +15,7 @@ services:
       - key: ADMIN_EMAILS
         sync: false
       - key: EMAIL_BACKEND
-        value: brevo
+        sync: false # brevo; sin valor usa "consola" y el código aparece en los logs de Render
       - key: EMAIL_FROM
         sync: false # remitente verificado en Brevo
       - key: EMAIL_FROM_NAME
