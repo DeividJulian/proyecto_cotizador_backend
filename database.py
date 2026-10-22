@@ -10,16 +10,16 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
     raise RuntimeError(
-        "DATABASE_URL is missing. Create the .env file (you can copy .env.example) "
-        "with a line like: DATABASE_URL=postgresql+psycopg://usuario:clave@host/base?sslmode=require"
+        "Falta DATABASE_URL. Crea el archivo .env (puedes copiar .env.example) "
+        "con una línea como: DATABASE_URL=postgresql+psycopg://usuario:clave@host/base?sslmode=require"
     )
 
-opciones = {"pool_pre_ping": True, "pool_recycle": 300}  # Neon duerme la base tras 5 min sin uso
+options = {"pool_pre_ping": True, "pool_recycle": 300}  # Neon puts the database to sleep after 5 idle minutes
 if DATABASE_URL.startswith("postgresql"):
-    # Compatible con el conector "pooled" de Neon (PgBouncer): evita sentencias preparadas
-    opciones["connect_args"] = {"prepare_threshold": None}
+    # Works with Neon's pooled connection (PgBouncer): no prepared statements
+    options["connect_args"] = {"prepare_threshold": None}
 
-engine = create_engine(DATABASE_URL, **opciones)
+engine = create_engine(DATABASE_URL, **options)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

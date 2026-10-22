@@ -1,4 +1,4 @@
-"""Login sin contraseña: códigos de verificación de un solo uso por correo y tokens de sesión JWT."""
+"""Passwordless login: one-time verification codes by email and JWT session tokens."""
 import hashlib
 import hmac
 import math
@@ -11,128 +11,128 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 import config
-from models.usuario import CodigoVerificacion, Usuario
-from services.correo import enviar_correo
-from services.tarifas import crear_tarifas_iniciales
+from models.user import User, VerificationCode
+from services.mailer import send_email
+from services.rates import create_initial_rates
 
-ALGORITMO = "HS256"
-
-
-class EsperaCodigo(Exception):
-    def __init__(self, segundos: int):
-        self.segundos = segundos
-        super().__init__(f"Wait {segundos} seconds before requesting another code")
+ALGORITHM = "HS256"
 
 
-class CodigoInvalido(Exception):
+class CodeCooldown(Exception):
+    def __init__(self, seconds: int):
+        self.seconds = seconds
+        super().__init__(f"Espera {seconds} segundos antes de pedir otro código")
+
+
+class InvalidCode(Exception):
     pass
 
 
-def ahora() -> datetime:
+def now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _con_zona(fecha: datetime) -> datetime:
-    """SQLite devuelve las fechas sin zona horaria: se asumen en UTC."""
-    return fecha if fecha.tzinfo else fecha.replace(tzinfo=timezone.utc)
+def _with_tz(value: datetime) -> datetime:
+    """SQLite returns dates without a time zone: they are assumed to be UTC."""
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
-def _hash(usuario_id: int, codigo: str) -> str:
-    return hmac.new(config.SECRET_KEY.encode(), f"{usuario_id}:{codigo}".encode(), hashlib.sha256).hexdigest()
+def _hash(user_id: int, code: str) -> str:
+    return hmac.new(config.SECRET_KEY.encode(), f"{user_id}:{code}".encode(), hashlib.sha256).hexdigest()
 
 
-def normalizar_email(email: str) -> str:
+def normalize_email(email: str) -> str:
     return email.strip().lower()
 
 
-def buscar_usuario(db: Session, email: str) -> Usuario | None:
-    return db.query(Usuario).filter(func.lower(Usuario.email) == normalizar_email(email)).first()
+def find_user(db: Session, email: str) -> User | None:
+    return db.query(User).filter(func.lower(User.email) == normalize_email(email)).first()
 
 
-def _ultimo_codigo(db: Session, usuario: Usuario, solo_activos: bool = False) -> CodigoVerificacion | None:
-    consulta = db.query(CodigoVerificacion).filter(CodigoVerificacion.usuario_id == usuario.id)
-    if solo_activos:
-        consulta = consulta.filter(CodigoVerificacion.usado.is_(False))
-    return consulta.order_by(CodigoVerificacion.id.desc()).first()
+def _last_code(db: Session, user: User, active_only: bool = False) -> VerificationCode | None:
+    query = db.query(VerificationCode).filter(VerificationCode.user_id == user.id)
+    if active_only:
+        query = query.filter(VerificationCode.used.is_(False))
+    return query.order_by(VerificationCode.id.desc()).first()
 
 
-def emitir_codigo(db: Session, usuario: Usuario, proposito: str) -> str:
-    """Genera un código nuevo e invalida los anteriores. Respeta una espera mínima entre envíos."""
-    ultimo = _ultimo_codigo(db, usuario)
-    if ultimo:
-        espera = config.CODIGO_ESPERA_SEGUNDOS - (ahora() - _con_zona(ultimo.creado_en)).total_seconds()
-        if espera > 0:
-            raise EsperaCodigo(math.ceil(espera))
+def issue_code(db: Session, user: User, purpose: str) -> str:
+    """Creates a new code and invalidates the previous ones. Enforces a minimum wait between emails."""
+    last = _last_code(db, user)
+    if last:
+        wait = config.CODE_WAIT_SECONDS - (now() - _with_tz(last.created_at)).total_seconds()
+        if wait > 0:
+            raise CodeCooldown(math.ceil(wait))
 
-    db.query(CodigoVerificacion).filter(
-        CodigoVerificacion.usuario_id == usuario.id, CodigoVerificacion.usado.is_(False)
-    ).update({"usado": True})
-    codigo = f"{secrets.randbelow(1_000_000):06d}"
+    db.query(VerificationCode).filter(VerificationCode.user_id == user.id, VerificationCode.used.is_(False)).update(
+        {VerificationCode.used: True}
+    )
+    code = f"{secrets.randbelow(1_000_000):06d}"
     db.add(
-        CodigoVerificacion(
-            usuario_id=usuario.id,
-            codigo_hash=_hash(usuario.id, codigo),
-            proposito=proposito,
-            expira_en=ahora() + timedelta(minutes=config.CODIGO_MINUTOS),
+        VerificationCode(
+            user_id=user.id,
+            code_hash=_hash(user.id, code),
+            purpose=purpose,
+            expires_at=now() + timedelta(minutes=config.CODE_MINUTES),
         )
     )
     db.flush()
-    return codigo
+    return code
 
 
-def verificar_codigo(db: Session, usuario: Usuario, codigo: str) -> None:
-    """Valida el último código activo. Lanza CodigoInvalido; el llamador debe guardar el intento fallido."""
-    registro = _ultimo_codigo(db, usuario, solo_activos=True)
-    if not registro:
-        raise CodigoInvalido("There is no active code: request a new one")
-    if _con_zona(registro.expira_en) < ahora():
-        registro.usado = True
-        raise CodigoInvalido("The code expired: request a new one")
-    if not hmac.compare_digest(registro.codigo_hash, _hash(usuario.id, codigo)):
-        registro.intentos += 1
-        restantes = config.CODIGO_INTENTOS - registro.intentos
-        if restantes <= 0:
-            registro.usado = True
-            raise CodigoInvalido("Incorrect code. Too many attempts: request a new one")
-        raise CodigoInvalido(f"Incorrect code. Attempts left: {restantes}")
-    registro.usado = True
+def check_code(db: Session, user: User, code: str) -> None:
+    """Validates the last active code. Raises InvalidCode; the caller must save the failed attempt."""
+    record = _last_code(db, user, active_only=True)
+    if not record:
+        raise InvalidCode("No hay un código activo: pide uno nuevo")
+    if _with_tz(record.expires_at) < now():
+        record.used = True
+        raise InvalidCode("El código venció: pide uno nuevo")
+    if not hmac.compare_digest(record.code_hash, _hash(user.id, code)):
+        record.attempts += 1
+        left = config.CODE_ATTEMPTS - record.attempts
+        if left <= 0:
+            record.used = True
+            raise InvalidCode("Código incorrecto. Agotaste los intentos: pide uno nuevo")
+        raise InvalidCode(f"Código incorrecto. Te quedan {left} intentos")
+    record.used = True
 
 
-def completar_acceso(db: Session, usuario: Usuario) -> None:
-    """Tras un código correcto: la primera vez se activa la cuenta con las tarifas de mercado."""
-    if not usuario.verificado:
-        usuario.verificado = True
-        crear_tarifas_iniciales(db, usuario)
-    usuario.ultimo_acceso = ahora()
+def complete_login(db: Session, user: User) -> None:
+    """After a correct code: the first time the account is activated with the market rates."""
+    if not user.verified:
+        user.verified = True
+        create_initial_rates(db, user)
+    user.last_login_at = now()
 
 
-def enviar_codigo(usuario: Usuario, codigo: str, proposito: str) -> None:
-    accion = "verify your account" if proposito == "registro" else "log in"
-    asunto = "Your AI Quoter verification code" if proposito == "registro" else "Your AI Quoter login code"
-    texto = (
-        f"Hi {usuario.nombre},\n\n"
-        f"Use this code to {accion}: {codigo}\n\n"
-        f"It expires in {config.CODIGO_MINUTOS} minutes. If you did not request it, ignore this email.\n\n"
-        "AI Quoter"
+def send_code(user: User, code: str, purpose: str) -> None:
+    action = "verificar tu cuenta" if purpose == "register" else "iniciar sesión"
+    subject = "Tu código de verificación de Cotizador IA" if purpose == "register" else "Tu código para entrar a Cotizador IA"
+    text = (
+        f"Hola {user.name}:\n\n"
+        f"Usa este código para {action}: {code}\n\n"
+        f"Vence en {config.CODE_MINUTES} minutos. Si no lo pediste, ignora este correo.\n\n"
+        "Cotizador IA"
     )
     html = (
-        f"<p>Hi {escape(usuario.nombre)},</p>"
-        f"<p>Use this code to {accion}:</p>"
-        f'<p style="font-size:28px;font-weight:700;letter-spacing:6px">{codigo}</p>'
-        f"<p>It expires in {config.CODIGO_MINUTOS} minutes. If you did not request it, ignore this email.</p>"
-        "<p>AI Quoter</p>"
+        f"<p>Hola {escape(user.name)}:</p>"
+        f"<p>Usa este código para {action}:</p>"
+        f'<p style="font-size:28px;font-weight:700;letter-spacing:6px">{code}</p>'
+        f"<p>Vence en {config.CODE_MINUTES} minutos. Si no lo pediste, ignora este correo.</p>"
+        "<p>Cotizador IA</p>"
     )
-    enviar_correo(usuario.email, asunto, texto, html)
+    send_email(user.email, subject, text, html)
 
 
-def crear_token(usuario: Usuario, horas: float | None = None) -> str:
-    vence = ahora() + timedelta(hours=config.TOKEN_HORAS if horas is None else horas)
-    return jwt.encode({"sub": str(usuario.id), "exp": vence}, config.SECRET_KEY, algorithm=ALGORITMO)
+def create_token(user: User, hours: float | None = None) -> str:
+    expires = now() + timedelta(hours=config.TOKEN_HOURS if hours is None else hours)
+    return jwt.encode({"sub": str(user.id), "exp": expires}, config.SECRET_KEY, algorithm=ALGORITHM)
 
 
-def leer_token(token: str) -> int | None:
-    """Devuelve el id del usuario del token, o None si es inválido o venció."""
+def read_token(token: str) -> int | None:
+    """Returns the user id of the token, or None when it is invalid or expired."""
     try:
-        return int(jwt.decode(token, config.SECRET_KEY, algorithms=[ALGORITMO])["sub"])
+        return int(jwt.decode(token, config.SECRET_KEY, algorithms=[ALGORITHM])["sub"])
     except (jwt.PyJWTError, KeyError, ValueError):
         return None
