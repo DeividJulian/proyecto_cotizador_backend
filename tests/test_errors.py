@@ -26,3 +26,8 @@ def test_cors_only_allows_the_front(anonymous):
     assert local.headers.get("access-control-allow-origin") == "http://localhost:4200"
     foreign = anonymous.options("/quotes", headers={"Origin": "https://evil.example.com", "Access-Control-Request-Method": "GET"})
     assert "access-control-allow-origin" not in foreign.headers
+
+
+def test_cors_exposes_retry_after(anonymous):
+    r = anonymous.get("/health", headers={"Origin": "https://cotizador-front-eight.vercel.app"})
+    assert "retry-after" in r.headers.get("access-control-expose-headers", "").lower()

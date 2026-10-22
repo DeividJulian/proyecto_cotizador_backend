@@ -37,6 +37,8 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    # The front reads it to tell how long to wait when the AI usage limit is reached
+    expose_headers=["Retry-After"],
 )
 
 # Registers every module of routers/ that defines `router`
