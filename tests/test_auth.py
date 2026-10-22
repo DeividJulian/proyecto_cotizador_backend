@@ -6,249 +6,266 @@ import pytest
 
 import config
 from database import SessionLocal
-from models.tarifa import Tarifa
-from models.usuario import CodigoVerificacion, Usuario
-from services import correo
-from services.auth import ahora, crear_token
-from services.correo import BANDEJA
-from tests.conftest import TARIFAS, entrar, ultimo_codigo
+from models.rate import Rate
+from models.user import User, VerificationCode
+from services import mailer
+from services.auth import create_token, now
+from services.mailer import OUTBOX
+from tests.conftest import RATES, last_code, log_in
 
 
-def registrar(anonimo, email="ana@pyme.com", nombre="Ana Pérez"):
-    return anonimo.post("/auth/registro", json={"nombre": nombre, "email": email})
+def register(anonymous, email="ana@pyme.com", name="Ana Pérez"):
+    return anonymous.post("/auth/register", json={"name": name, "email": email})
 
 
-def verificar(anonimo, email, codigo):
-    return anonimo.post("/auth/verificar", json={"email": email, "codigo": codigo})
+def verify(anonymous, email, code):
+    return anonymous.post("/auth/verify", json={"email": email, "code": code})
 
 
-def sin_espera(monkeypatch):
-    monkeypatch.setattr(config, "CODIGO_ESPERA_SEGUNDOS", 0)
+def no_wait(monkeypatch):
+    monkeypatch.setattr(config, "CODE_WAIT_SECONDS", 0)
 
 
-def incorrecto(codigo: str) -> str:
-    return "000000" if codigo != "000000" else "111111"
+def wrong(code: str) -> str:
+    return "000000" if code != "000000" else "111111"
 
 
-# ---------- Registro y verificación ----------
+# ---------- Sign up and verification ----------
 
-def test_registro_envia_correo_con_codigo_y_la_cuenta_queda_sin_verificar(anonimo):
-    r = registrar(anonimo)
-    assert r.status_code == 201
-    assert len(BANDEJA) == 1 and BANDEJA[0]["para"] == "ana@pyme.com"
-    assert len(ultimo_codigo("ana@pyme.com")) == 6
+def test_sign_up_emails_a_code_and_leaves_the_account_unverified(anonymous):
+    r = register(anonymous)
+    assert r.status_code == 201 and r.json()["message"] == "Te enviamos un código de verificación al correo"
+    assert len(OUTBOX) == 1 and OUTBOX[0]["to"] == "ana@pyme.com"
+    assert "código de verificación" in OUTBOX[0]["subject"] and "Hola Ana Pérez" in OUTBOX[0]["text"]
+    assert len(last_code("ana@pyme.com")) == 6
     with SessionLocal() as db:
-        assert db.query(Usuario).one().verificado is False
-        assert db.query(Tarifa).count() == 0  # las tarifas se cargan al verificar
-        # el código nunca se guarda en texto plano
-        assert ultimo_codigo("ana@pyme.com") not in db.query(CodigoVerificacion).one().codigo_hash
+        assert db.query(User).one().verified is False
+        assert db.query(Rate).count() == 0  # rates are loaded on verification
+        # the code is never stored as plain text
+        assert last_code("ana@pyme.com") not in db.query(VerificationCode).one().code_hash
 
 
-def test_verificar_activa_la_cuenta_con_tarifas_de_mercado(anonimo):
-    registrar(anonimo)
-    r = verificar(anonimo, "ana@pyme.com", ultimo_codigo("ana@pyme.com"))
+def test_verifying_activates_the_account_with_market_rates(anonymous):
+    register(anonymous)
+    r = verify(anonymous, "ana@pyme.com", last_code("ana@pyme.com"))
     assert r.status_code == 200
-    datos = r.json()
-    assert datos["token"] and datos["usuario"]["email"] == "ana@pyme.com"
-    perfil = anonimo.get("/auth/me", headers={"Authorization": f"Bearer {datos['token']}"})
-    assert perfil.status_code == 200 and perfil.json()["nombre"] == "Ana Pérez"
+    data = r.json()
+    assert data["token"] and data["user"]["email"] == "ana@pyme.com"
+    me = anonymous.get("/auth/me", headers={"Authorization": f"Bearer {data['token']}"})
+    assert me.status_code == 200 and me.json()["name"] == "Ana Pérez"
     with SessionLocal() as db:
-        assert {t.rol: t.valor_hora for t in db.query(Tarifa).all()} == TARIFAS
+        assert {r.role: r.hourly_rate for r in db.query(Rate).all()} == RATES
 
 
-def test_volver_a_entrar_recupera_la_cuenta_y_su_progreso(anonimo, monkeypatch):
-    sin_espera(monkeypatch)
-    primera = entrar("ana@pyme.com")
-    cot = primera.post("/cotizaciones", json={"titulo": "Mi tienda", "descripcion_alcance": "Una tienda en línea con pagos"}).json()
+def test_logging_in_again_recovers_the_account_and_its_progress(anonymous, monkeypatch):
+    no_wait(monkeypatch)
+    first = log_in("ana@pyme.com")
+    quote = first.post("/quotes", json={"title": "Mi tienda", "scope_description": "Una tienda en línea con pagos"}).json()
 
-    anonimo.post("/auth/login", json={"email": "ana@pyme.com"})
-    r = verificar(anonimo, "ana@pyme.com", ultimo_codigo("ana@pyme.com"))
-    anonimo.headers["Authorization"] = f"Bearer {r.json()['token']}"
-    assert [c["id"] for c in anonimo.get("/cotizaciones").json()] == [cot["id"]]
+    anonymous.post("/auth/login", json={"email": "ana@pyme.com"})
+    r = verify(anonymous, "ana@pyme.com", last_code("ana@pyme.com"))
+    anonymous.headers["Authorization"] = f"Bearer {r.json()['token']}"
+    assert [q["id"] for q in anonymous.get("/quotes").json()] == [quote["id"]]
     with SessionLocal() as db:
-        assert db.query(Tarifa).count() == len(TARIFAS)  # no se duplican las tarifas
+        assert db.query(Rate).count() == len(RATES)  # rates are not duplicated
 
 
-def test_email_sin_distinguir_mayusculas(anonimo, monkeypatch):
-    sin_espera(monkeypatch)
-    registrar(anonimo, email="Ana@Pyme.COM")
-    assert verificar(anonimo, "ana@pyme.com", ultimo_codigo("ana@pyme.com")).status_code == 200
-    assert anonimo.post("/auth/login", json={"email": "ANA@pyme.com"}).status_code == 200
+def test_email_is_case_insensitive(anonymous, monkeypatch):
+    no_wait(monkeypatch)
+    register(anonymous, email="Ana@Pyme.COM")
+    assert verify(anonymous, "ana@pyme.com", last_code("ana@pyme.com")).status_code == 200
+    assert anonymous.post("/auth/login", json={"email": "ANA@pyme.com"}).status_code == 200
 
 
-def test_registro_duplicado_de_cuenta_verificada_da_409(anonimo):
-    entrar("ana@pyme.com")
-    assert registrar(anonimo).status_code == 409
+def test_signing_up_twice_with_a_verified_account_returns_409(anonymous):
+    log_in("ana@pyme.com")
+    r = register(anonymous)
+    assert r.status_code == 409 and r.json()["detail"] == "Ya existe una cuenta con ese correo: inicia sesión"
 
 
-def test_registro_repetido_sin_verificar_reenvia_el_codigo(anonimo, monkeypatch):
-    sin_espera(monkeypatch)
-    registrar(anonimo)
-    primero = ultimo_codigo("ana@pyme.com")
-    assert registrar(anonimo, nombre="Ana María").status_code == 201
-    assert len(BANDEJA) == 2
+def test_signing_up_again_without_verifying_resends_the_code(anonymous, monkeypatch):
+    no_wait(monkeypatch)
+    register(anonymous)
+    first = last_code("ana@pyme.com")
+    assert register(anonymous, name="Ana María").status_code == 201
+    assert len(OUTBOX) == 2
     with SessionLocal() as db:
-        assert db.query(Usuario).count() == 1 and db.query(Usuario).one().nombre == "Ana María"
-    segundo = ultimo_codigo("ana@pyme.com")
-    if primero != segundo:  # el código anterior queda invalidado
-        assert verificar(anonimo, "ana@pyme.com", primero).status_code == 400
-    assert verificar(anonimo, "ana@pyme.com", segundo).status_code == 200
+        assert db.query(User).count() == 1 and db.query(User).one().name == "Ana María"
+    second = last_code("ana@pyme.com")
+    if first != second:  # the previous code is invalidated
+        assert verify(anonymous, "ana@pyme.com", first).status_code == 400
+    assert verify(anonymous, "ana@pyme.com", second).status_code == 200
 
 
-def test_datos_de_registro_invalidos(anonimo):
-    assert anonimo.post("/auth/registro", json={"nombre": "A", "email": "ana@pyme.com"}).status_code == 422
-    assert anonimo.post("/auth/registro", json={"nombre": "Ana", "email": "no-es-correo"}).status_code == 422
-    assert BANDEJA == []
+def test_invalid_sign_up_data(anonymous):
+    assert anonymous.post("/auth/register", json={"name": "A", "email": "ana@pyme.com"}).status_code == 422
+    assert anonymous.post("/auth/register", json={"name": "Ana", "email": "no-es-correo"}).status_code == 422
+    assert OUTBOX == []
 
 
-# ---------- Login con código ----------
+# ---------- Log in with a code ----------
 
-def test_login_de_email_no_registrado_da_404(anonimo):
-    assert anonimo.post("/auth/login", json={"email": "nadie@x.com"}).status_code == 404
-    assert BANDEJA == []
-
-
-def test_pedir_otro_codigo_demasiado_pronto_da_429(anonimo):
-    registrar(anonimo)
-    r = anonimo.post("/auth/login", json={"email": "ana@pyme.com"})
-    assert r.status_code == 429 and "seconds" in r.json()["detail"]
-    assert len(BANDEJA) == 1
+def test_logging_in_with_an_unknown_email_returns_404(anonymous):
+    r = anonymous.post("/auth/login", json={"email": "nadie@x.com"})
+    assert r.status_code == 404 and "regístrate" in r.json()["detail"]
+    assert OUTBOX == []
 
 
-def test_el_correo_de_login_dice_que_es_para_entrar(anonimo):
-    entrar("ana@pyme.com")
-    with SessionLocal() as db:  # simula que el último código se pidió hace rato
-        db.query(CodigoVerificacion).update({"creado_en": ahora() - timedelta(minutes=5)})
+def test_asking_for_another_code_too_soon_returns_429(anonymous):
+    register(anonymous)
+    r = anonymous.post("/auth/login", json={"email": "ana@pyme.com"})
+    assert r.status_code == 429 and "segundos" in r.json()["detail"]
+    assert len(OUTBOX) == 1
+
+
+def test_the_login_email_says_it_is_for_logging_in(anonymous):
+    log_in("ana@pyme.com")
+    with SessionLocal() as db:  # pretends the last code was asked for a while ago
+        db.query(VerificationCode).update({VerificationCode.created_at: now() - timedelta(minutes=5)})
         db.commit()
-    assert anonimo.post("/auth/login", json={"email": "ana@pyme.com"}).status_code == 200
-    assert "login" in BANDEJA[-1]["asunto"].lower()
+    assert anonymous.post("/auth/login", json={"email": "ana@pyme.com"}).status_code == 200
+    assert "entrar" in OUTBOX[-1]["subject"] and "iniciar sesión" in OUTBOX[-1]["text"]
 
 
-# ---------- Seguridad del código ----------
+# ---------- Code security ----------
 
-def test_codigo_incorrecto_descuenta_intentos(anonimo):
-    registrar(anonimo)
-    codigo = ultimo_codigo("ana@pyme.com")
-    r = verificar(anonimo, "ana@pyme.com", incorrecto(codigo))
-    assert r.status_code == 400 and f"Attempts left: {config.CODIGO_INTENTOS - 1}" in r.json()["detail"]
-    assert verificar(anonimo, "ana@pyme.com", codigo).status_code == 200
-
-
-def test_tras_agotar_los_intentos_el_codigo_correcto_ya_no_sirve(anonimo):
-    registrar(anonimo)
-    codigo = ultimo_codigo("ana@pyme.com")
-    for _ in range(config.CODIGO_INTENTOS):
-        assert verificar(anonimo, "ana@pyme.com", incorrecto(codigo)).status_code == 400
-    r = verificar(anonimo, "ana@pyme.com", codigo)
-    assert r.status_code == 400 and "no active code" in r.json()["detail"]
+def test_a_wrong_code_counts_an_attempt(anonymous):
+    register(anonymous)
+    code = last_code("ana@pyme.com")
+    r = verify(anonymous, "ana@pyme.com", wrong(code))
+    assert r.status_code == 400 and f"Te quedan {config.CODE_ATTEMPTS - 1} intentos" in r.json()["detail"]
+    assert verify(anonymous, "ana@pyme.com", code).status_code == 200
 
 
-def test_codigo_vencido_no_sirve(anonimo):
-    registrar(anonimo)
+def test_after_all_attempts_the_right_code_no_longer_works(anonymous):
+    register(anonymous)
+    code = last_code("ana@pyme.com")
+    for _ in range(config.CODE_ATTEMPTS):
+        assert verify(anonymous, "ana@pyme.com", wrong(code)).status_code == 400
+    r = verify(anonymous, "ana@pyme.com", code)
+    assert r.status_code == 400 and "No hay un código activo" in r.json()["detail"]
+
+
+def test_an_expired_code_does_not_work(anonymous):
+    register(anonymous)
     with SessionLocal() as db:
-        db.query(CodigoVerificacion).update({"expira_en": ahora() - timedelta(seconds=1)})
+        db.query(VerificationCode).update({VerificationCode.expires_at: now() - timedelta(seconds=1)})
         db.commit()
-    r = verificar(anonimo, "ana@pyme.com", ultimo_codigo("ana@pyme.com"))
-    assert r.status_code == 400 and "expired" in r.json()["detail"]
+    r = verify(anonymous, "ana@pyme.com", last_code("ana@pyme.com"))
+    assert r.status_code == 400 and "venció" in r.json()["detail"]
 
 
-def test_el_codigo_es_de_un_solo_uso(anonimo):
-    registrar(anonimo)
-    codigo = ultimo_codigo("ana@pyme.com")
-    assert verificar(anonimo, "ana@pyme.com", codigo).status_code == 200
-    assert verificar(anonimo, "ana@pyme.com", codigo).status_code == 400
+def test_the_code_works_only_once(anonymous):
+    register(anonymous)
+    code = last_code("ana@pyme.com")
+    assert verify(anonymous, "ana@pyme.com", code).status_code == 200
+    assert verify(anonymous, "ana@pyme.com", code).status_code == 400
 
 
-def test_un_codigo_nuevo_invalida_el_anterior(anonimo, monkeypatch):
-    sin_espera(monkeypatch)
-    registrar(anonimo)
-    viejo = ultimo_codigo("ana@pyme.com")
-    anonimo.post("/auth/login", json={"email": "ana@pyme.com"})
-    nuevo = ultimo_codigo("ana@pyme.com")
-    if viejo != nuevo:
-        assert verificar(anonimo, "ana@pyme.com", viejo).status_code == 400
-    assert verificar(anonimo, "ana@pyme.com", nuevo).status_code == 200
+def test_a_new_code_invalidates_the_previous_one(anonymous, monkeypatch):
+    no_wait(monkeypatch)
+    register(anonymous)
+    old = last_code("ana@pyme.com")
+    anonymous.post("/auth/login", json={"email": "ana@pyme.com"})
+    new = last_code("ana@pyme.com")
+    if old != new:
+        assert verify(anonymous, "ana@pyme.com", old).status_code == 400
+    assert verify(anonymous, "ana@pyme.com", new).status_code == 200
 
 
-def test_codigo_con_formato_invalido_da_422(anonimo):
-    registrar(anonimo)
-    assert verificar(anonimo, "ana@pyme.com", "12ab56").status_code == 422
-    assert verificar(anonimo, "ana@pyme.com", "123").status_code == 422
+def test_a_code_with_a_wrong_format_returns_422(anonymous):
+    register(anonymous)
+    assert verify(anonymous, "ana@pyme.com", "12ab56").status_code == 422
+    assert verify(anonymous, "ana@pyme.com", "123").status_code == 422
 
 
-def test_verificar_email_desconocido_da_400(anonimo):
-    assert verificar(anonimo, "nadie@x.com", "123456").status_code == 400
+def test_verifying_an_unknown_email_returns_400(anonymous):
+    assert verify(anonymous, "nadie@x.com", "123456").status_code == 400
 
 
 # ---------- Tokens ----------
 
-def test_me_sin_token_da_401(anonimo):
-    assert anonimo.get("/auth/me").status_code == 401
+def test_me_without_a_token_returns_401(anonymous):
+    r = anonymous.get("/auth/me")
+    assert r.status_code == 401 and r.json()["detail"] == "Debes iniciar sesión"
 
 
 @pytest.mark.parametrize(
     "token", ["basura", jwt.encode({"sub": "1"}, "otra-clave-distinta-de-al-menos-32-bytes", algorithm="HS256")]
 )
-def test_token_invalido_o_firmado_con_otra_clave_da_401(anonimo, token):
-    entrar("ana@pyme.com")
-    assert anonimo.get("/auth/me", headers={"Authorization": f"Bearer {token}"}).status_code == 401
+def test_invalid_or_foreign_token_returns_401(anonymous, token):
+    log_in("ana@pyme.com")
+    assert anonymous.get("/auth/me", headers={"Authorization": f"Bearer {token}"}).status_code == 401
 
 
-def test_token_vencido_da_401(anonimo):
-    entrar("ana@pyme.com")
+def test_expired_token_returns_401(anonymous):
+    log_in("ana@pyme.com")
     with SessionLocal() as db:
-        token = crear_token(db.query(Usuario).one(), horas=-1)
-    assert anonimo.get("/auth/me", headers={"Authorization": f"Bearer {token}"}).status_code == 401
+        token = create_token(db.query(User).one(), hours=-1)
+    r = anonymous.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 401 and "venció" in r.json()["detail"]
 
 
-def test_token_de_cuenta_sin_verificar_da_401(anonimo):
-    registrar(anonimo)
+def test_token_of_an_unverified_account_returns_401(anonymous):
+    register(anonymous)
     with SessionLocal() as db:
-        token = crear_token(db.query(Usuario).one())
-    assert anonimo.get("/auth/me", headers={"Authorization": f"Bearer {token}"}).status_code == 401
+        token = create_token(db.query(User).one())
+    assert anonymous.get("/auth/me", headers={"Authorization": f"Bearer {token}"}).status_code == 401
 
 
-# ---------- Envío de correos ----------
+# ---------- Email delivery ----------
 
-def test_si_el_correo_falla_responde_502_y_no_guarda_la_cuenta(anonimo, monkeypatch):
-    def falla(*_args, **_kwargs):
-        raise correo.ErrorCorreo("proveedor caído")
+def test_if_the_email_fails_it_returns_502_and_saves_no_account(anonymous, monkeypatch):
+    def fail(*_args, **_kwargs):
+        raise mailer.EmailError("provider down")
 
-    monkeypatch.setattr("services.auth.enviar_correo", falla)
-    assert registrar(anonimo).status_code == 502
+    monkeypatch.setattr("services.auth.send_email", fail)
+    r = register(anonymous)
+    assert r.status_code == 502 and "No pudimos enviar el correo" in r.json()["detail"]
     with SessionLocal() as db:
-        assert db.query(Usuario).count() == 0
+        assert db.query(User).count() == 0
 
 
-def test_backend_brevo_envia_la_peticion_correcta(monkeypatch):
-    enviadas = []
+def test_brevo_backend_sends_the_right_request(monkeypatch):
+    sent = []
 
-    class Respuesta:
+    class Response:
         def __enter__(self):
             return self
 
         def __exit__(self, *args):
             return False
 
-    def urlopen_falso(peticion, timeout):
-        enviadas.append(peticion)
-        return Respuesta()
+    def fake_urlopen(request, timeout):
+        sent.append(request)
+        return Response()
 
     monkeypatch.setattr(config, "EMAIL_BACKEND", "brevo")
     monkeypatch.setattr(config, "BREVO_API_KEY", "clave-brevo")
     monkeypatch.setattr(config, "EMAIL_FROM", "cotizador@ejemplo.com")
-    monkeypatch.setattr(correo.urllib.request, "urlopen", urlopen_falso)
-    correo.enviar_correo("ana@pyme.com", "Asunto", "Tu código es 123456")
+    monkeypatch.setattr(mailer.urllib.request, "urlopen", fake_urlopen)
+    mailer.send_email("ana@pyme.com", "Asunto", "Tu código es 123456")
 
-    peticion = enviadas[0]
-    assert peticion.full_url == correo.BREVO_URL and peticion.get_header("Api-key") == "clave-brevo"
-    cuerpo = json.loads(peticion.data)
-    assert cuerpo["to"] == [{"email": "ana@pyme.com"}] and cuerpo["sender"]["email"] == "cotizador@ejemplo.com"
-    assert "123456" in cuerpo["textContent"]
+    request = sent[0]
+    assert request.full_url == mailer.BREVO_URL and request.get_header("Api-key") == "clave-brevo"
+    body = json.loads(request.data)
+    assert body["to"] == [{"email": "ana@pyme.com"}] and body["sender"]["email"] == "cotizador@ejemplo.com"
+    assert "123456" in body["textContent"]
 
 
-def test_backend_brevo_sin_api_key_falla_con_error_de_correo(monkeypatch):
+def test_brevo_backend_without_api_key_raises_an_email_error(monkeypatch):
     monkeypatch.setattr(config, "EMAIL_BACKEND", "brevo")
     monkeypatch.setattr(config, "BREVO_API_KEY", "")
-    with pytest.raises(correo.ErrorCorreo):
-        correo.enviar_correo("ana@pyme.com", "Asunto", "Texto")
+    with pytest.raises(mailer.EmailError):
+        mailer.send_email("ana@pyme.com", "Asunto", "Texto")
+
+
+def test_spanish_names_of_the_email_backend_still_work(monkeypatch):
+    import importlib
+
+    monkeypatch.setenv("EMAIL_BACKEND", "consola")
+    try:
+        assert importlib.reload(config).EMAIL_BACKEND == "console"
+    finally:
+        monkeypatch.setenv("EMAIL_BACKEND", "memory")
+        importlib.reload(config)

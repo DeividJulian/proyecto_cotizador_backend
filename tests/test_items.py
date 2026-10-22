@@ -1,53 +1,59 @@
-def test_agregar_item_manual_recalcula(client, cotizacion_analizada):
-    cid = cotizacion_analizada["id"]
-    r = client.post(f"/cotizaciones/{cid}/items", json={"nombre": "Integración con ERP", "complejidad": "alta", "horas_probable": 40})
+from services.catalog import CROSS_CUTTING, CUSTOM
+
+
+def test_adding_a_manual_item_recalculates(client, analyzed_quote):
+    qid = analyzed_quote["id"]
+    r = client.post(f"/quotes/{qid}/items", json={"name": "Integración con ERP", "complexity": "high", "hours_likely": 40})
     assert r.status_code == 201
-    c = r.json()
-    assert c["total"] > cotizacion_analizada["total"]
-    nuevo = next(i for i in c["items"] if i["nombre"] == "Integración con ERP")
-    assert nuevo["origen"] == "manual" and nuevo["horas_optimista"] < 40 < nuevo["horas_pesimista"]
+    q = r.json()
+    assert q["total"] > analyzed_quote["total"]
+    new = next(i for i in q["items"] if i["name"] == "Integración con ERP")
+    assert new["source"] == "manual" and new["category"] == CUSTOM and new["reasons"] == "Agregado manualmente"
+    assert new["hours_optimistic"] < 40 < new["hours_pessimistic"]
 
 
-def test_distribucion_invalida_da_422(client, cotizacion_analizada):
-    r = client.post(f"/cotizaciones/{cotizacion_analizada['id']}/items",
-                    json={"nombre": "Algo", "horas_probable": 10, "distribucion": {"Backend": 0.5}})
-    assert r.status_code == 422
+def test_invalid_split_returns_422(client, analyzed_quote):
+    r = client.post(f"/quotes/{analyzed_quote['id']}/items",
+                    json={"name": "Algo", "hours_likely": 10, "split": {"Backend": 0.5}})
+    assert r.status_code == 422 and "100 %" in r.json()["detail"]
 
 
-def test_item_manual_sobrevive_a_reanalizar(client, cotizacion_analizada):
-    cid = cotizacion_analizada["id"]
-    client.post(f"/cotizaciones/{cid}/items", json={"nombre": "Capacitación", "horas_probable": 12})
-    r = client.post(f"/cotizaciones/{cid}/analizar").json()
-    assert "Capacitación" in [i["nombre"] for i in r["items"]]
+def test_a_manual_item_survives_a_new_analysis(client, analyzed_quote):
+    qid = analyzed_quote["id"]
+    client.post(f"/quotes/{qid}/items", json={"name": "Capacitación", "hours_likely": 12})
+    r = client.post(f"/quotes/{qid}/analyze").json()
+    assert "Capacitación" in [i["name"] for i in r["items"]]
 
 
-def test_editar_item_de_ia_lo_vuelve_manual(client, cotizacion_analizada):
-    cid = cotizacion_analizada["id"]
-    item = next(i for i in cotizacion_analizada["items"] if i["origen"] == "ia" and i["categoria"] != "Cross-cutting")
-    r = client.put(f"/cotizaciones/{cid}/items/{item['id']}", json={"horas_probable": item["horas_probable"] + 50})
+def test_editing_an_analysis_item_turns_it_manual(client, analyzed_quote):
+    qid = analyzed_quote["id"]
+    item = next(i for i in analyzed_quote["items"] if i["source"] == "ai" and i["category"] != CROSS_CUTTING)
+    r = client.put(f"/quotes/{qid}/items/{item['id']}", json={"hours_likely": item["hours_likely"] + 50})
     assert r.status_code == 200
-    editado = next(i for i in r.json()["items"] if i["id"] == item["id"])
-    assert editado["origen"] == "manual" and editado["horas_probable"] == item["horas_probable"] + 50
-    assert r.json()["total"] > cotizacion_analizada["total"]
-    r = client.post(f"/cotizaciones/{cid}/analizar").json()
+    edited = next(i for i in r.json()["items"] if i["id"] == item["id"])
+    assert edited["source"] == "manual" and edited["hours_likely"] == item["hours_likely"] + 50
+    assert edited["reasons"] == "Ajustado manualmente"
+    assert r.json()["total"] > analyzed_quote["total"]
+    r = client.post(f"/quotes/{qid}/analyze").json()
     assert any(i["id"] == item["id"] for i in r["items"])
 
 
-def test_eliminar_item_recalcula(client, cotizacion_analizada):
-    cid = cotizacion_analizada["id"]
-    item = next(i for i in cotizacion_analizada["items"] if i["categoria"] != "Cross-cutting")
-    r = client.delete(f"/cotizaciones/{cid}/items/{item['id']}")
-    assert r.status_code == 200 and r.json()["total"] < cotizacion_analizada["total"]
+def test_deleting_an_item_recalculates(client, analyzed_quote):
+    qid = analyzed_quote["id"]
+    item = next(i for i in analyzed_quote["items"] if i["category"] != CROSS_CUTTING)
+    r = client.delete(f"/quotes/{qid}/items/{item['id']}")
+    assert r.status_code == 200 and r.json()["total"] < analyzed_quote["total"]
 
 
-def test_item_de_otra_cotizacion_da_404(client, cotizacion_analizada):
-    assert client.delete(f"/cotizaciones/{cotizacion_analizada['id']}/items/9999").status_code == 404
+def test_missing_item_returns_404(client, analyzed_quote):
+    r = client.delete(f"/quotes/{analyzed_quote['id']}/items/9999")
+    assert r.status_code == 404 and r.json()["detail"] == "Módulo no encontrado en esta cotización"
 
 
-def test_item_sin_tarifa_hace_rollback(client, cotizacion_analizada):
-    cid = cotizacion_analizada["id"]
-    tarifa = next(t for t in client.get("/tarifas").json() if t["rol"] == "DevOps")
-    client.delete(f"/tarifas/{tarifa['id']}")
-    r = client.post(f"/cotizaciones/{cid}/items", json={"nombre": "Extra", "horas_probable": 10})
+def test_an_item_without_rate_rolls_back(client, analyzed_quote):
+    qid = analyzed_quote["id"]
+    rate = next(r for r in client.get("/rates").json() if r["role"] == "DevOps")
+    client.delete(f"/rates/{rate['id']}")
+    r = client.post(f"/quotes/{qid}/items", json={"name": "Extra", "hours_likely": 10})
     assert r.status_code == 409
-    assert len(client.get(f"/cotizaciones/{cid}/items").json()) == len(cotizacion_analizada["items"])
+    assert len(client.get(f"/quotes/{qid}/items").json()) == len(analyzed_quote["items"])
