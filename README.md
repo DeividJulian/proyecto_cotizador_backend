@@ -8,17 +8,32 @@ Base de datos **PostgreSQL en Neon** · inicio de sesión con **código por corr
 Convención: el código, las rutas y los campos JSON están en inglés; todo lo que ve el usuario (mensajes de error,
 nombres de módulos y roles, propuesta) está en español.
 
-## ¿Qué hace la "IA"?
-Todo el análisis es Python propio, sin APIs externas, y cada resultado se puede explicar:
+## ¿Qué hace la IA?
+Las cifras (módulos, horas, precio, hitos) siempre las calcula código propio en Python. Un modelo de lenguaje
+(**Groq**, opcional) solo lee esos resultados y escribe texto: nunca cambia horas, precios ni hitos por su cuenta.
 
-| Paso | Técnica |
-|---|---|
-| Análisis del alcance | Normalización sin acentos, catálogo de 19 módulos con palabras clave en español e inglés y señales de complejidad por oración |
-| Estimación | PERT de tres puntos: (optimista + 4·probable + pesimista) / 6, con rangos según la complejidad |
-| Reparto del trabajo | Cada módulo se reparte entre Backend, Frontend y Diseño UX/UI; QA, gestión y despliegue son un % del desarrollo |
-| Cálculo financiero | costo directo → contingencia → margen → descuento → IVA, cronograma e hitos de pago 40/30/30 |
-| Cotizaciones parecidas | TF-IDF y similitud del coseno implementados desde cero (solo entre las cotizaciones del usuario) |
-| Propuesta | Documento Markdown con 8 secciones y formato de pesos colombianos |
+| Paso | Quién lo hace | Técnica |
+|---|---|---|
+| Análisis del alcance | Código propio | Normalización sin acentos, catálogo de 19 módulos con palabras clave en español e inglés y señales de complejidad por oración |
+| Estimación | Código propio | PERT de tres puntos: (optimista + 4·probable + pesimista) / 6, con rangos según la complejidad |
+| Reparto del trabajo | Código propio | Cada módulo se reparte entre Backend, Frontend y Diseño UX/UI; QA, gestión y despliegue son un % del desarrollo |
+| Cálculo financiero | Código propio | Costo directo → contingencia → margen → descuento → IVA, cronograma e hitos de pago 40/30/30 |
+| Cotizaciones parecidas | Código propio | TF-IDF y similitud del coseno implementados desde cero (solo entre las cotizaciones del usuario) |
+| Propuesta | Código propio | Documento Markdown con 8 secciones y formato de pesos colombianos |
+| Segunda opinión del alcance | Groq | Sugiere módulos **del catálogo** que la descripción pide y el análisis no detectó; el usuario decide si los agrega (como módulo manual, con las horas del catálogo) |
+| Explicación del precio | Groq | Explica en palabras sencillas las cifras ya calculadas y cómo podría bajar el precio |
+| Preguntas y riesgos | Groq | Preguntas para el cliente y riesgos que podrían aumentar las horas |
+| Redacción de la propuesta | Groq | Reescribe el resumen, el alcance y los supuestos; si cambia una sola cifra la sugerencia se descarta, y solo se guarda lo que el usuario aplica |
+
+Reglas de la IA (`services/llm.py`, `services/privacy.py`, `services/ai.py`):
+- Respuestas con **salidas estructuradas** (`json_schema` estricto) validadas con Pydantic.
+- **Privacidad:** el nombre del cliente, la empresa, el nombre y el correo del usuario, y cualquier correo o teléfono se
+  reemplazan por marcadores (`[cliente]`, `[correo 1]`…) antes de salir del servidor, y se restauran en la respuesta.
+- Solo sobre las cotizaciones propias y con sesión iniciada.
+- Errores claros, nunca un 500: **503** si no está configurada, **429** con `Retry-After` si se alcanzó el límite de uso,
+  **502** si el proveedor falla, tarda más de 30 s o responde algo inválido. Un 5xx se reintenta una vez.
+- Variables: `AI_PROVIDER=groq`, `AI_API_KEY` (clave `gsk_…` de https://console.groq.com/keys),
+  `AI_MODEL=openai/gpt-oss-20b`; opcionales `AI_BASE_URL` y `AI_FALLBACK_MODEL`. Sin clave, todo lo demás funciona igual.
 
 ## Puesta en marcha
 ```bash
@@ -79,6 +94,7 @@ Una cotización enviada queda congelada; para editarla hay que devolverla a borr
 | Módulos | `/quotes/{id}/items` (GET, POST, PUT, DELETE) |
 | Propuesta | `/quotes/{id}/proposal` y `/download` |
 | Estadísticas | `GET /stats`, `POST /seed` |
+| IA | `GET /ai/status`, `POST /ai/quotes/{id}/scope-review`, `/explain-price`, `/client-questions`, `/improve-proposal`; `PATCH /quotes/{id}/proposal` aplica las secciones aceptadas |
 
 CORS: solo el front de Vercel y `localhost:4200` pueden llamar al API desde el navegador (`CORS_ORIGINS`).
 
@@ -86,4 +102,5 @@ CORS: solo el front de Vercel y `localhost:4200` pueden llamar al API desde el n
 ```bash
 pytest
 ```
-120 pruebas sobre SQLite: nunca tocan la base de Neon ni envían correos reales (leen los códigos de una bandeja en memoria).
+160 pruebas sobre SQLite: nunca tocan la base de Neon, no envían correos reales (leen los códigos de una bandeja en
+memoria) y nunca llaman a Groq (las respuestas del modelo se simulan a nivel HTTP).
