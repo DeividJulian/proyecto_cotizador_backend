@@ -9,7 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-import models  # noqa: F401  (registra todas las tablas)
+import config
+import models  # noqa: F401  (registers every table)
 import routers
 from database import Base, engine
 
@@ -22,59 +23,65 @@ logger = logging.getLogger("cotizador.api")
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="AI Quotation Engine", version="1.0.0")
+app = FastAPI(
+    title="Cotizador IA",
+    description="Convierte la descripción de un proyecto de software en una cotización: módulos, horas PERT, "
+    "precio y propuesta comercial.",
+    version="2.0.0",
+)
 
+# Only the front (Vercel and local development) may call the API from a browser
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=config.CORS_ORIGINS,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Registra automáticamente cada archivo de la carpeta routers/ que defina `router`
-for _, nombre_modulo, _ in pkgutil.iter_modules(routers.__path__):
-    modulo = importlib.import_module(f"routers.{nombre_modulo}")
-    if hasattr(modulo, "router"):
-        app.include_router(modulo.router)
+# Registers every module of routers/ that defines `router`
+for _, module_name, _ in pkgutil.iter_modules(routers.__path__):
+    module = importlib.import_module(f"routers.{module_name}")
+    if hasattr(module, "router"):
+        app.include_router(module.router)
 
 
 @app.middleware("http")
-async def registrar_peticiones(request: Request, call_next):
-    inicio = time.perf_counter()
-    respuesta = await call_next(request)
-    ms = (time.perf_counter() - inicio) * 1000
-    logger.info("%s %s -> %s (%.0f ms)", request.method, request.url.path, respuesta.status_code, ms)
-    return respuesta
+async def log_requests(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    ms = (time.perf_counter() - start) * 1000
+    logger.info("%s %s -> %s (%.0f ms)", request.method, request.url.path, response.status_code, ms)
+    return response
 
 
 @app.exception_handler(RequestValidationError)
-async def error_validacion(request: Request, exc: RequestValidationError):
-    mensajes = []
+async def validation_error(request: Request, exc: RequestValidationError):
+    messages = []
     for e in exc.errors():
-        campo = ".".join(str(x) for x in e["loc"] if x not in ("body", "query", "path"))
-        mensajes.append(f"{campo}: {e['msg']}" if campo else e["msg"])
-    logger.warning("Validation failed on %s %s: %s", request.method, request.url.path, mensajes)
-    return JSONResponse(status_code=422, content={"detail": "; ".join(mensajes)})
+        field = ".".join(str(x) for x in e["loc"] if x not in ("body", "query", "path"))
+        messages.append(f"{field}: {e['msg']}" if field else e["msg"])
+    logger.warning("Validation failed on %s %s: %s", request.method, request.url.path, messages)
+    return JSONResponse(status_code=422, content={"detail": "Datos inválidos. " + "; ".join(messages)})
 
 
 @app.exception_handler(IntegrityError)
-async def error_integridad(request: Request, exc: IntegrityError):
+async def integrity_error(request: Request, exc: IntegrityError):
     logger.warning("Integrity violation on %s %s", request.method, request.url.path)
-    return JSONResponse(status_code=409, content={"detail": "The operation violates a database constraint"})
+    return JSONResponse(status_code=409, content={"detail": "La operación viola una restricción de la base de datos"})
 
 
 @app.exception_handler(SQLAlchemyError)
-async def error_bd(request: Request, exc: SQLAlchemyError):
+async def database_error(request: Request, exc: SQLAlchemyError):
     logger.error("Database error on %s %s", request.method, request.url.path, exc_info=exc)
-    return JSONResponse(status_code=500, content={"detail": "Internal database error"})
+    return JSONResponse(status_code=500, content={"detail": "Error interno de la base de datos"})
 
 
-@app.get("/", tags=["System"])
-def raiz():
-    return {"mensaje": "AI Quotation Engine API is running"}
+@app.get("/", tags=["Sistema"], summary="Inicio")
+def root():
+    return {"message": "API del Cotizador IA funcionando"}
 
 
-@app.get("/health", tags=["System"])
+@app.get("/health", tags=["Sistema"], summary="Estado")
 def health():
     return {"status": "ok"}
