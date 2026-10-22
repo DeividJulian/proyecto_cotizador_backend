@@ -1,9 +1,17 @@
 """Commercial proposal in Markdown, built from a calculated quote. The document is shown to the client: Spanish."""
+import re
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 
 from services.catalog import CROSS_CUTTING
 
 VALIDITY_DAYS = 30
+
+# Sections whose wording the AI may improve: the others are tables and lists built from the numbers
+WORDING_SECTIONS = ("Resumen ejecutivo", "Alcance", "Supuestos y exclusiones")
+
+_HEADING = re.compile(r"^## (.+)$", re.MULTILINE)
+_NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
 
 COMPLEXITY_LABELS = {"low": "baja", "medium": "media", "high": "alta"}
 
@@ -108,3 +116,30 @@ def build_proposal(quote, date: datetime | None = None) -> str:
         "",
     ]
     return "\n".join(lines)
+
+
+def split_sections(markdown: str) -> tuple[str, list[tuple[str, str]]]:
+    """("text before the first ## heading", [(heading, body), ...]). The body keeps its blank lines."""
+    parts = _HEADING.split(markdown)
+    return parts[0], list(zip(parts[1::2], parts[2::2]))
+
+
+def section_title(heading: str) -> str:
+    """'1. Resumen ejecutivo' -> 'Resumen ejecutivo'."""
+    return re.sub(r"^\d+\.\s*", "", heading).strip()
+
+
+def numbers_in(text: str) -> Counter:
+    """Every figure of a text (amounts, hours, weeks, dates, percentages), to check that a rewrite kept them."""
+    return Counter(_NUMBER.findall(text))
+
+
+def replace_sections(markdown: str, texts: dict[str, str]) -> str:
+    """Replaces the body of the sections named in `texts` (by full heading). The rest stays byte for byte."""
+    preamble, sections = split_sections(markdown)
+    rebuilt = [preamble]
+    for heading, body in sections:
+        if heading in texts:
+            body = "\n\n" + texts[heading].strip() + "\n\n"
+        rebuilt.append(f"## {heading}{body}")
+    return "".join(rebuilt)
