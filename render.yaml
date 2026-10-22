@@ -20,3 +20,9 @@ services:
         value: Cotizador IA
       - key: BREVO_API_KEY
         sync: false
+      - key: AI_PROVIDER
+        value: groq
+      - key: AI_API_KEY
+        sync: false # clave de Groq (gsk_...); sin ella la IA queda deshabilitada
+      - key: AI_MODEL
+        value: openai/gpt-oss-20b
