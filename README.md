@@ -1,92 +1,89 @@
-# AI Quotation Engine: backend
+# Cotizador IA · backend
 
-A **FastAPI** API for freelancers who don't know how much to charge: the user describes their software project and
-the app turns it into a complete quote. It detects the modules, estimates the hours with **PERT**, calculates the
-price with the user's hourly rates and writes the commercial proposal.
-Database: **PostgreSQL on Neon**. Login: **one-time code by email** (no password).
+API en **FastAPI** para freelancers que no saben cuánto cobrar por un proyecto de software: el usuario describe su
+proyecto y la app lo convierte en una cotización completa. Detecta los módulos, estima las horas con **PERT**,
+calcula el precio con las tarifas del usuario y redacta la propuesta comercial.
+Base de datos **PostgreSQL en Neon** · inicio de sesión con **código por correo** (sin contraseña) · desplegado en **Render**.
 
-## What does the "AI" do?
-All natural language processing is implemented in plain Python, with no external APIs, and every result is explainable:
+Convención: el código, las rutas y los campos JSON están en inglés; todo lo que ve el usuario (mensajes de error,
+nombres de módulos y roles, propuesta) está en español.
 
-| Step | Technique |
+## ¿Qué hace la "IA"?
+Todo el análisis es Python propio, sin APIs externas, y cada resultado se puede explicar:
+
+| Paso | Técnica |
 |---|---|
-| Scope analysis | Accent-free normalization, a catalog of 19 modules with keywords, and complexity signals per sentence |
-| Estimation | Three-point PERT: (optimistic + 4·most likely + pessimistic) / 6, with ranges based on complexity |
-| Work split | Each module is distributed among Backend, Frontend and UX/UI Design; QA, project management and deployment are calculated as a % of development |
-| Financial calculation | direct cost → contingency → margin → discount → VAT, plus schedule and 40/30/30 payment milestones |
-| Similar quotes | TF-IDF and cosine similarity implemented from scratch (only among the user's own quotes) |
-| Proposal | Markdown document with 8 sections, amounts in Colombian pesos (COP) |
+| Análisis del alcance | Normalización sin acentos, catálogo de 19 módulos con palabras clave en español e inglés y señales de complejidad por oración |
+| Estimación | PERT de tres puntos: (optimista + 4·probable + pesimista) / 6, con rangos según la complejidad |
+| Reparto del trabajo | Cada módulo se reparte entre Backend, Frontend y Diseño UX/UI; QA, gestión y despliegue son un % del desarrollo |
+| Cálculo financiero | costo directo → contingencia → margen → descuento → IVA, cronograma e hitos de pago 40/30/30 |
+| Cotizaciones parecidas | TF-IDF y similitud del coseno implementados desde cero (solo entre las cotizaciones del usuario) |
+| Propuesta | Documento Markdown con 8 secciones y formato de pesos colombianos |
 
-Scope descriptions are expected in Spanish: the module keywords in `services/catalogo.py` are Spanish.
-
-## Getting started
+## Puesta en marcha
 ```bash
 python -m venv venv
 venv\Scripts\activate            # Windows
 pip install -r requirements-dev.txt
-copy .env.example .env           # then paste your Neon connection string
+copy .env.example .env           # y pega tu cadena de Neon
 uvicorn main:app --reload
 ```
-Interactive documentation at http://127.0.0.1:8000/docs.
+Documentación interactiva en http://127.0.0.1:8000/docs (botón **Authorize** para pegar el token).
 
-### Neon database
-1. Create a project at https://neon.tech and copy the *connection string*.
-2. Replace the `postgresql://` prefix with `postgresql+psycopg://` and keep only `?sslmode=require` at the end.
-3. Paste it into `.env` as `DATABASE_URL`. Tables are created automatically on startup.
+### Base de datos en Neon
+1. Crea un proyecto en https://neon.tech y copia la *connection string*.
+2. Cámbiale el inicio `postgresql://` por `postgresql+psycopg://` y deja solo `?sslmode=require` al final.
+3. Pégala en `.env` como `DATABASE_URL`. Las tablas se crean solas al arrancar.
 
-Neon puts the database to sleep after 5 minutes of inactivity: the first request may take a couple of seconds.
-The engine uses `pool_pre_ping` and `pool_recycle` to reconnect without errors.
+Neon duerme la base tras 5 minutos sin uso: la primera petición puede tardar un par de segundos.
 
-If the database still has tables from an older version of the schema, recreate them (this **deletes all data**):
-`python reset_db.py --si`.
+Las tablas conservan sus nombres de columnas en español; el código los usa con nombres en inglés.
+Para pasar datos guardados con la versión anterior (estados `borrador`, roles en inglés, etc.):
+`python migrate_to_english.py` (muestra los cambios) y `python migrate_to_english.py --yes` (los guarda).
+`python reset_db.py --si` borra todo y recrea las tablas (solo si de verdad hace falta).
 
-## Login with an emailed code
-Passwordless: the user enters their email and receives a **6-digit one-time code**.
+## Inicio de sesión con código por correo
+1. `POST /auth/register` (name, email) → envía un código de verificación.
+2. `POST /auth/login` (email) → envía un código para entrar (cuentas que ya existen).
+3. `POST /auth/verify` (email, code) → devuelve el token. Envíalo como `Authorization: Bearer <token>`.
+   La primera verificación activa la cuenta y carga las **tarifas de referencia del mercado**.
+4. `GET /auth/me` → usuario actual.
 
-1. `POST /auth/registro` (name, email) → emails a verification code.
-2. `POST /auth/login` (email) → emails a login code (for accounts that already exist).
-3. `POST /auth/verificar` (email, code) → returns a JWT. Send it as `Authorization: Bearer <token>`.
-   The first verification activates the account and loads the **market reference rates**.
-4. `GET /auth/me` → current user.
+El código vence en 10 minutos, sirve una sola vez, permite 5 intentos y hay que esperar 30 segundos para pedir otro.
+Solo se guarda un hash del código. No hay roles: cada usuario ve y edita **solo** sus cotizaciones, tarifas y
+estadísticas (los datos de otro usuario responden 404).
 
-Codes expire after 10 minutes, can be used once, allow 5 attempts, and you must wait 30 seconds before requesting
-another one. Only a hash of the code is stored.
+### Envío de correos
+`EMAIL_BACKEND`: `console` (muestra el código en la terminal; en local), `smtp` (por ejemplo Gmail, solo en local) o
+`brevo` (API HTTP gratis; funciona en Render, cuyo plan gratis bloquea SMTP). Ver `.env.example`.
 
-There are no roles: every user sees and edits **only their own** quotes, items, proposals, rates and statistics.
-Another user's data simply does not exist for them (404). In `/docs`, use **Authorize** to paste the token.
+## Flujo de uso
+1. Regístrate y verifica el código: tus tarifas ya vienen cargadas (ajústalas en `/rates` o restablécelas con
+   `POST /rates/reset`). `POST /seed` carga cotizaciones de ejemplo.
+2. `POST /quotes` con el alcance en texto libre (opcional: para quién es, `client_name` y `client_company`).
+3. `POST /quotes/{id}/analyze`: módulos, horas y precio.
+4. Ajustes: `PUT /quotes/{id}` (margen, descuento…) o `/quotes/{id}/items` (agregar, editar, quitar). Todo se recalcula solo.
+5. `POST /quotes/{id}/proposal` y `GET /quotes/{id}/proposal/download`.
+6. `POST /quotes/{id}/status` para el seguimiento: `draft` (borrador) → `sent` (enviada) → `accepted` (aceptada) | `rejected` (rechazada).
 
-### Sending emails
-`EMAIL_BACKEND` chooses the provider: `consola` (prints the code in the terminal, default for local development),
-`smtp` (e.g. Gmail with an app password, local only) or `brevo` (free HTTP API, works on Render, whose free plan
-blocks SMTP ports). See `.env.example`.
+Una cotización enviada queda congelada; para editarla hay que devolverla a borrador.
 
-## Usage flow
-1. Sign up and verify the emailed code: your rates are already loaded (adjust them in `/tarifas` if you want, or restore them with
-   `POST /tarifas/restablecer`). `POST /seed` loads example quotes.
-2. `POST /cotizaciones` with the scope as free text (optionally, who the project is for: `cliente_nombre`, `cliente_empresa`).
-3. `POST /cotizaciones/{id}/analizar`: modules, hours and price.
-4. Optional adjustments: `PUT /cotizaciones/{id}` (margin, discount…) or `/items` (add, edit, remove). Everything is recalculated automatically.
-5. `POST /cotizaciones/{id}/propuesta` and `GET .../propuesta/descargar`.
-6. `POST /cotizaciones/{id}/estado` to track the proposal you sent to your client:
-   `borrador` (draft) → `enviada` (sent) → `aceptada` (accepted) | `rechazada` (rejected).
-
-A sent quote is frozen; to edit it, move it back to `borrador`.
-
-## Main endpoints
-| Group | Routes |
+## Endpoints
+| Grupo | Rutas |
 |---|---|
-| Authentication | `POST /auth/registro`, `/auth/login`, `/auth/verificar`, `GET /auth/me` |
-| Scope | `POST /alcance/analizar`, `POST /alcance/estimar` (nothing is saved) |
-| Finance | `POST /finanzas/simular` |
-| Rates | CRUD at `/tarifas`, `POST /tarifas/restablecer`, `GET /tarifas/mercado` (public) |
-| Quotes | CRUD, `/analizar`, `/resumen`, `/estado`, `/similares` |
-| Items | `/cotizaciones/{id}/items` (GET, POST, PUT, DELETE) |
-| Proposal | `/cotizaciones/{id}/propuesta` and `/descargar` |
-| Analytics | `GET /estadisticas`, `POST /seed` |
+| Autenticación | `POST /auth/register`, `/auth/login`, `/auth/verify`, `GET /auth/me` |
+| Alcance | `POST /scope/analyze`, `POST /scope/estimate` (no guardan nada) |
+| Finanzas | `POST /finance/simulate` |
+| Tarifas | CRUD en `/rates`, `POST /rates/reset`, `GET /rates/market` (pública) |
+| Cotizaciones | CRUD en `/quotes`, `/analyze`, `/summary`, `/status`, `/similar` |
+| Módulos | `/quotes/{id}/items` (GET, POST, PUT, DELETE) |
+| Propuesta | `/quotes/{id}/proposal` y `/download` |
+| Estadísticas | `GET /stats`, `POST /seed` |
 
-## Tests
+CORS: solo el front de Vercel y `localhost:4200` pueden llamar al API desde el navegador (`CORS_ORIGINS`).
+
+## Pruebas
 ```bash
 pytest
 ```
-116 tests on SQLite. They never touch the Neon database and never send real emails: they read the codes from an
-in-memory outbox.
+120 pruebas sobre SQLite: nunca tocan la base de Neon ni envían correos reales (leen los códigos de una bandeja en memoria).
