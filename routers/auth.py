@@ -2,83 +2,83 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models.usuario import Usuario
-from schemas.auth import LoginEntrada, RegistroEntrada, SesionOut, UsuarioOut, VerificarEntrada
-from seguridad import usuario_actual
+from models.user import User
+from schemas.auth import LoginInput, RegisterInput, SessionOut, UserOut, VerifyInput
+from security import current_user
 from services.auth import (
-    CodigoInvalido,
-    EsperaCodigo,
-    buscar_usuario,
-    completar_acceso,
-    crear_token,
-    emitir_codigo,
-    enviar_codigo,
-    normalizar_email,
-    verificar_codigo,
+    CodeCooldown,
+    InvalidCode,
+    check_code,
+    complete_login,
+    create_token,
+    find_user,
+    issue_code,
+    normalize_email,
+    send_code,
 )
-from services.correo import ErrorCorreo
+from services.mailer import EmailError
 
-router = APIRouter(prefix="/auth", tags=["Authentication"])
+router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
 
-def _enviar_codigo(db: Session, usuario: Usuario, proposito: str) -> None:
-    """Genera y envía el código. Si el correo no sale, deshace todo (no queda un usuario a medias)."""
+def _send_code(db: Session, user: User, purpose: str) -> None:
+    """Creates and sends the code. If the email does not go out, everything is undone (no half-created user)."""
     try:
-        codigo = emitir_codigo(db, usuario, proposito)
-    except EsperaCodigo as e:
+        code = issue_code(db, user, purpose)
+    except CodeCooldown as e:
         db.rollback()
         raise HTTPException(status_code=429, detail=str(e))
     try:
-        enviar_codigo(usuario, codigo, proposito)
-    except ErrorCorreo:
+        send_code(user, code, purpose)
+    except EmailError:
         db.rollback()
-        raise HTTPException(status_code=502, detail="We could not send the email. Try again in a few minutes.")
+        raise HTTPException(status_code=502, detail="No pudimos enviar el correo. Intenta de nuevo en unos minutos.")
     db.commit()
 
 
-@router.post("/registro", status_code=201)
-def registro(datos: RegistroEntrada, db: Session = Depends(get_db)):
-    """Creates the account and emails a verification code. If it was never verified, the code is resent."""
-    usuario = buscar_usuario(db, datos.email)
-    if usuario and usuario.verificado:
-        raise HTTPException(status_code=409, detail="An account with that email already exists: log in")
-    if usuario:
-        usuario.nombre = datos.nombre
+@router.post("/register", status_code=201, summary="Crear cuenta")
+def register(data: RegisterInput, db: Session = Depends(get_db)):
+    """Crea la cuenta y envía un código de verificación al correo. Si nunca se verificó, reenvía el código."""
+    user = find_user(db, data.email)
+    if user and user.verified:
+        raise HTTPException(status_code=409, detail="Ya existe una cuenta con ese correo: inicia sesión")
+    if user:
+        user.name = data.name
     else:
-        usuario = Usuario(nombre=datos.nombre, email=normalizar_email(datos.email))
-        db.add(usuario)
+        user = User(name=data.name, email=normalize_email(data.email))
+        db.add(user)
         db.flush()
-    _enviar_codigo(db, usuario, "registro")
-    return {"mensaje": "We sent a verification code to your email", "email": usuario.email}
+    _send_code(db, user, "register")
+    return {"message": "Te enviamos un código de verificación al correo", "email": user.email}
 
 
-@router.post("/login")
-def login(datos: LoginEntrada, db: Session = Depends(get_db)):
-    """Emails a one-time login code."""
-    usuario = buscar_usuario(db, datos.email)
-    if not usuario:
-        raise HTTPException(status_code=404, detail="There is no account with that email: sign up first")
-    _enviar_codigo(db, usuario, "login")
-    return {"mensaje": "We sent a login code to your email", "email": usuario.email}
+@router.post("/login", summary="Pedir código para entrar")
+def login(data: LoginInput, db: Session = Depends(get_db)):
+    """Envía un código de un solo uso al correo."""
+    user = find_user(db, data.email)
+    if not user:
+        raise HTTPException(status_code=404, detail="No hay ninguna cuenta con ese correo: regístrate primero")
+    _send_code(db, user, "login")
+    return {"message": "Te enviamos un código para entrar", "email": user.email}
 
 
-@router.post("/verificar", response_model=SesionOut)
-def verificar(datos: VerificarEntrada, db: Session = Depends(get_db)):
-    """Checks the emailed code and returns the session token. The first time it activates the account."""
-    usuario = buscar_usuario(db, datos.email)
-    if not usuario:
-        raise HTTPException(status_code=400, detail="There is no active code: request a new one")
+@router.post("/verify", response_model=SessionOut, summary="Verificar código")
+def verify(data: VerifyInput, db: Session = Depends(get_db)):
+    """Valida el código del correo y devuelve el token de sesión. La primera vez activa la cuenta."""
+    user = find_user(db, data.email)
+    if not user:
+        raise HTTPException(status_code=400, detail="No hay un código activo: pide uno nuevo")
     try:
-        verificar_codigo(db, usuario, datos.codigo)
-    except CodigoInvalido as e:
-        db.commit()  # guarda el intento fallido o el código invalidado
+        check_code(db, user, data.code)
+    except InvalidCode as e:
+        db.commit()  # saves the failed attempt or the invalidated code
         raise HTTPException(status_code=400, detail=str(e))
-    completar_acceso(db, usuario)
+    complete_login(db, user)
     db.commit()
-    db.refresh(usuario)
-    return {"token": crear_token(usuario), "usuario": usuario}
+    db.refresh(user)
+    return {"token": create_token(user), "user": user}
 
 
-@router.get("/me", response_model=UsuarioOut)
-def perfil(usuario: Usuario = Depends(usuario_actual)):
-    return usuario
+@router.get("/me", response_model=UserOut, summary="Usuario actual")
+def me(user: User = Depends(current_user)):
+    return user

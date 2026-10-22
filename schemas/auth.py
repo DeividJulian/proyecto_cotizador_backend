@@ -3,34 +3,34 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, EmailStr, StringConstraints
 
-Nombre = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=100)]
-Codigo = Annotated[str, StringConstraints(strip_whitespace=True, pattern=r"^\d{6}$")]
+Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=100)]
+Code = Annotated[str, StringConstraints(strip_whitespace=True, pattern=r"^\d{6}$")]
 
 
-class RegistroEntrada(BaseModel):
-    nombre: Nombre
+class RegisterInput(BaseModel):
+    name: Name
     email: EmailStr
 
 
-class LoginEntrada(BaseModel):
+class LoginInput(BaseModel):
     email: EmailStr
 
 
-class VerificarEntrada(BaseModel):
+class VerifyInput(BaseModel):
     email: EmailStr
-    codigo: Codigo
+    code: Code
 
 
-class UsuarioOut(BaseModel):
+class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    nombre: str
+    name: str
     email: str
-    creado_en: datetime
-    ultimo_acceso: datetime | None
+    created_at: datetime
+    last_login_at: datetime | None
 
 
-class SesionOut(BaseModel):
+class SessionOut(BaseModel):
     token: str
-    usuario: UsuarioOut
+    user: UserOut

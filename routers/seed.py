@@ -2,27 +2,27 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models.usuario import Usuario
-from seguridad import usuario_actual
-from services.finanzas import TarifaFaltante
-from services.seed import borrar_cotizaciones, cargar_ejemplos, tiene_cotizaciones
+from models.user import User
+from security import current_user
+from services.finance import MissingRate
+from services.seed import delete_quotes, has_quotes, load_examples
 
-router = APIRouter(tags=["Demo data"])
+router = APIRouter(tags=["Datos de ejemplo"])
 
 
-@router.post("/seed")
-def cargar_seed(reiniciar: bool = False, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
-    """Loads example quotes into your account. With reiniciar=true it first deletes all your quotes."""
-    if tiene_cotizaciones(db, usuario.id):
-        if not reiniciar:
+@router.post("/seed", summary="Cargar ejemplos")
+def seed(reset: bool = False, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Carga cotizaciones de ejemplo en tu cuenta. Con reset=true primero borra todas tus cotizaciones."""
+    if has_quotes(db, user.id):
+        if not reset:
             raise HTTPException(
                 status_code=409,
-                detail="You already have quotes. Use /seed?reiniciar=true to delete them and load the examples.",
+                detail="Ya tienes cotizaciones. Usa /seed?reset=true para borrarlas y cargar los ejemplos.",
             )
-        borrar_cotizaciones(db, usuario.id)
+        delete_quotes(db, user.id)
     try:
-        resumen = cargar_ejemplos(db, usuario)
-    except TarifaFaltante as e:
+        summary = load_examples(db, user)
+    except MissingRate as e:
         db.rollback()
-        raise HTTPException(status_code=409, detail=f"{e}. Restore the market rates in My rates.")
-    return {"mensaje": "Example quotes loaded", "resumen": resumen}
+        raise HTTPException(status_code=409, detail=f"{e}. Restablece las tarifas de mercado en Mis tarifas.")
+    return {"message": "Cotizaciones de ejemplo cargadas", "summary": summary}
