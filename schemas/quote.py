@@ -4,14 +4,14 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from schemas.finance import Financials
-from schemas.scope import Analysis, Estimate, ScopeText
+from schemas.scope import Analysis, Estimate, Level, ScopeText, Source
 from services.catalog import CUSTOM
 
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=150)]
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=100)]
 ItemName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=120)]
 Status = Literal["draft", "sent", "accepted", "rejected"]
-Complexity = Literal["low", "medium", "high"]
+Complexity = Level
 
 
 class QuoteCreate(BaseModel):
@@ -61,8 +61,8 @@ class ItemOut(BaseModel):
     id: int
     name: str
     category: str
-    complexity: str
-    source: str
+    complexity: Level
+    source: Source
     hours_optimistic: float
     hours_likely: float
     hours_pessimistic: float
@@ -78,7 +78,7 @@ class QuoteSummary(BaseModel):
     title: str
     client_name: str | None
     client_company: str | None
-    status: str
+    status: Status
     total: int
     created_at: datetime
     updated_at: datetime
@@ -102,11 +102,11 @@ class QuoteCard(BaseModel):
     id: int
     title: str
     client: str | None
-    status: str
+    status: Status
     modules: int
     hours_expected: float
     hours_range: list[float]
-    confidence: str | None
+    confidence: Level | None
     duration_weeks: int
     total: int
     has_proposal: bool
@@ -115,6 +115,6 @@ class QuoteCard(BaseModel):
 class SimilarQuote(BaseModel):
     id: int
     title: str
-    status: str
+    status: Status
     total: int
     similarity: float

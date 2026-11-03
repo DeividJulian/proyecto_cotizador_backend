@@ -1,6 +1,9 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, StringConstraints
+
+Level = Literal["low", "medium", "high"]  # complexity and confidence
+Source = Literal["ai", "manual"]  # ai: detected by the analysis
 
 ScopeText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=10, max_length=20000)]
 
@@ -13,7 +16,7 @@ class ScopeModule(BaseModel):
     key: str
     name: str
     category: str
-    complexity: str
+    complexity: Level
     matched_keywords: list[str]
     reasons: str
 
@@ -23,7 +26,7 @@ class Analysis(BaseModel):
     modules: list[ScopeModule] = []
     high_complexity_signals: list[str] = []
     low_complexity_signals: list[str] = []
-    confidence: str | None = None
+    confidence: Level | None = None
     warnings: list[str] = []
 
 
@@ -41,14 +44,14 @@ class Estimate(BaseModel):
     hours_likely: float | None = None
     hours_pessimistic: float | None = None
     hours_expected: float | None = None
-    confidence: str | None = None
+    confidence: Level | None = None
 
 
 class EstimatedItem(BaseModel):
     name: str
     category: str
-    complexity: str
-    source: str
+    complexity: Level
+    source: Source
     split: dict[str, float]
     reasons: str
     hours_optimistic: float

@@ -30,6 +30,11 @@
           "confidence": {
             "anyOf": [
               {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ],
                 "type": "string"
               },
               {
@@ -155,6 +160,11 @@
           "confidence": {
             "anyOf": [
               {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ],
                 "type": "string"
               },
               {
@@ -218,6 +228,11 @@
             "type": "string"
           },
           "complexity": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
             "title": "Complexity",
             "type": "string"
           },
@@ -246,6 +261,10 @@
             "type": "string"
           },
           "source": {
+            "enum": [
+              "ai",
+              "manual"
+            ],
             "title": "Source",
             "type": "string"
           },
@@ -516,6 +535,11 @@
             "type": "string"
           },
           "complexity": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
             "title": "Complexity",
             "type": "string"
           },
@@ -548,6 +572,10 @@
             "type": "string"
           },
           "source": {
+            "enum": [
+              "ai",
+              "manual"
+            ],
             "title": "Source",
             "type": "string"
           },
@@ -868,6 +896,11 @@
           "confidence": {
             "anyOf": [
               {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ],
                 "type": "string"
               },
               {
@@ -904,6 +937,12 @@
             "type": "integer"
           },
           "status": {
+            "enum": [
+              "draft",
+              "sent",
+              "accepted",
+              "rejected"
+            ],
             "title": "Status",
             "type": "string"
           },
@@ -1083,6 +1122,12 @@
             "type": "string"
           },
           "status": {
+            "enum": [
+              "draft",
+              "sent",
+              "accepted",
+              "rejected"
+            ],
             "title": "Status",
             "type": "string"
           },
@@ -1161,6 +1206,12 @@
             "type": "integer"
           },
           "status": {
+            "enum": [
+              "draft",
+              "sent",
+              "accepted",
+              "rejected"
+            ],
             "title": "Status",
             "type": "string"
           },
@@ -1485,6 +1536,11 @@
             "type": "string"
           },
           "complexity": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
             "title": "Complexity",
             "type": "string"
           },
@@ -1651,6 +1707,12 @@
             "type": "number"
           },
           "status": {
+            "enum": [
+              "draft",
+              "sent",
+              "accepted",
+              "rejected"
+            ],
             "title": "Status",
             "type": "string"
           },
