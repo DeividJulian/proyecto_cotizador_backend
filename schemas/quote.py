@@ -3,7 +3,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
-from schemas.scope import ScopeText
+from schemas.finance import Financials
+from schemas.scope import Analysis, Estimate, ScopeText
 from services.catalog import CUSTOM
 
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=150)]
@@ -66,7 +67,7 @@ class ItemOut(BaseModel):
     hours_likely: float
     hours_pessimistic: float
     hours_expected: float
-    split: dict
+    split: dict[str, float]
     reasons: str
 
 
@@ -89,8 +90,31 @@ class QuoteOut(QuoteSummary):
     contingency_pct: float
     discount_pct: float
     vat_pct: float
-    analysis: dict
-    estimate: dict
-    financials: dict
+    analysis: Analysis
+    estimate: Estimate
+    financials: Financials
     proposal: str | None
     items: list[ItemOut]
+
+
+class QuoteCard(BaseModel):
+    """Compact view of a quote for cards."""
+    id: int
+    title: str
+    client: str | None
+    status: str
+    modules: int
+    hours_expected: float
+    hours_range: list[float]
+    confidence: str | None
+    duration_weeks: int
+    total: int
+    has_proposal: bool
+
+
+class SimilarQuote(BaseModel):
+    id: int
+    title: str
+    status: str
+    total: int
+    similarity: float

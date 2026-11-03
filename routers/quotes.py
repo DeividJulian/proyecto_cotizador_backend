@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.quote import Quote
 from models.user import User
-from schemas.quote import QuoteCreate, QuoteOut, QuoteSummary, QuoteUpdate, StatusChange
+from schemas.common import Message, errors
+from schemas.quote import QuoteCard, QuoteCreate, QuoteOut, QuoteSummary, QuoteUpdate, SimilarQuote, StatusChange
 from security import current_user
 from services.catalog import CROSS_CUTTING
 from services.finance import MissingRate
@@ -14,7 +15,7 @@ from services.quoting import TRANSITIONS, apply_analysis, recalculate
 from services.similarity import cosine_similarity
 
 logger = logging.getLogger("cotizador.api")
-router = APIRouter(prefix="/quotes", tags=["Cotizaciones"])
+router = APIRouter(prefix="/quotes", tags=["Cotizaciones"], responses=errors(401, 404, 409, 422))
 
 STATUS_LABELS = {"draft": "borrador", "sent": "enviada", "accepted": "aceptada", "rejected": "rechazada"}
 
@@ -99,7 +100,7 @@ def update_quote(quote_id: int, data: QuoteUpdate, db: Session = Depends(get_db)
     return save_recalculated(db, quote)
 
 
-@router.delete("/{quote_id}", summary="Eliminar cotización")
+@router.delete("/{quote_id}", response_model=Message, summary="Eliminar cotización")
 def delete_quote(quote_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     quote = get_quote(db, quote_id, user)
     require_draft(quote)
@@ -120,7 +121,7 @@ def analyze_quote(quote_id: int, db: Session = Depends(get_db), user: User = Dep
     return save_recalculated(db, quote)
 
 
-@router.get("/{quote_id}/summary", summary="Resumen de la cotización")
+@router.get("/{quote_id}/summary", response_model=QuoteCard, summary="Resumen de la cotización")
 def quote_summary(quote_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     """Vista compacta para tarjetas: total, horas, duración y confianza."""
     return summary_of(get_quote(db, quote_id, user))
@@ -145,7 +146,7 @@ def change_status(quote_id: int, data: StatusChange, db: Session = Depends(get_d
     return quote
 
 
-@router.get("/{quote_id}/similar", summary="Cotizaciones parecidas")
+@router.get("/{quote_id}/similar", response_model=list[SimilarQuote], summary="Cotizaciones parecidas")
 def similar_quotes(
     quote_id: int,
     limit: int = Query(3, ge=1, le=10),

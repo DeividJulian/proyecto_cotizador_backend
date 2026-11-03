@@ -16,3 +16,8 @@ class RateOut(BaseModel):
     id: int
     role: str
     hourly_rate: int
+
+
+class MarketRate(BaseModel):
+    role: str
+    hourly_rate: int

@@ -8,3 +8,8 @@ class SectionText(BaseModel):
 
 class ProposalSectionsUpdate(BaseModel):
     sections: list[SectionText] = Field(min_length=1)
+
+
+class ProposalOut(BaseModel):
+    quote_id: int
+    proposal: str

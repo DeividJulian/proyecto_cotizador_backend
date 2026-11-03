@@ -5,10 +5,11 @@ from database import get_db
 from models.user import User
 from routers.quotes import get_quote
 from schemas.ai import AIStatus, ClientQuestions, PriceExplanation, ProposalWording, ScopeReview
+from schemas.common import errors
 from security import current_user
 from services import ai, llm
 
-router = APIRouter(prefix="/ai", tags=["IA"])
+router = APIRouter(prefix="/ai", tags=["IA"], responses=errors(401, 404, 409, 422, 429, 502, 503))
 
 
 def _run(function, *args):

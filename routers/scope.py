@@ -1,20 +1,21 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-from schemas.scope import ScopeInput
+from schemas.common import errors
+from schemas.scope import Analysis, ScopeEstimate, ScopeInput
 from security import current_user
 from services.estimation import build_items, summarize_estimate
 from services.scope import analyze_scope
 
-router = APIRouter(prefix="/scope", tags=["Alcance"], dependencies=[Depends(current_user)])
+router = APIRouter(prefix="/scope", tags=["Alcance"], dependencies=[Depends(current_user)], responses=errors(401, 422))
 
 
-@router.post("/analyze", summary="Analizar alcance")
+@router.post("/analyze", response_model=Analysis, summary="Analizar alcance")
 def analyze(data: ScopeInput):
     """Detecta los módulos, la complejidad y la confianza de una descripción de proyecto (no guarda nada)."""
     return analyze_scope(data.scope_description)
 
 
-@router.post("/estimate", summary="Estimar alcance")
+@router.post("/estimate", response_model=ScopeEstimate, summary="Estimar alcance")
 def estimate(data: ScopeInput):
     """Estima las horas por módulo y por rol con PERT (no guarda nada)."""
     analysis = analyze_scope(data.scope_description)

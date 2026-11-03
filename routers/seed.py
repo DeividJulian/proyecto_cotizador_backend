@@ -3,14 +3,16 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models.user import User
+from schemas.common import errors
+from schemas.stats import SeedResult
 from security import current_user
 from services.finance import MissingRate
 from services.seed import delete_quotes, has_quotes, load_examples
 
-router = APIRouter(tags=["Datos de ejemplo"])
+router = APIRouter(tags=["Datos de ejemplo"], responses=errors(401, 409, 422))
 
 
-@router.post("/seed", summary="Cargar ejemplos")
+@router.post("/seed", response_model=SeedResult, summary="Cargar ejemplos")
 def seed(reset: bool = False, db: Session = Depends(get_db), user: User = Depends(current_user)):
     """Carga cotizaciones de ejemplo en tu cuenta. Con reset=true primero borra todas tus cotizaciones."""
     if has_quotes(db, user.id):

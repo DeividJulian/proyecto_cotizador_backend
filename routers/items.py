@@ -5,11 +5,12 @@ from database import get_db
 from models.quote import Quote, QuoteItem
 from models.user import User
 from routers.quotes import get_quote, require_draft, save_recalculated
+from schemas.common import errors
 from schemas.quote import ItemCreate, ItemOut, ItemUpdate, QuoteOut
 from security import current_user
 from services.estimation import manual_item
 
-router = APIRouter(prefix="/quotes/{quote_id}/items", tags=["Módulos de la cotización"])
+router = APIRouter(prefix="/quotes/{quote_id}/items", tags=["Módulos de la cotización"], responses=errors(401, 404, 409, 422))
 
 EDITABLE_FIELDS = ("name", "complexity", "source", "split", "hours_optimistic", "hours_likely", "hours_pessimistic",
                    "hours_expected")

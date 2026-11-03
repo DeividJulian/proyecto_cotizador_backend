@@ -13,6 +13,7 @@ import config
 import models  # noqa: F401  (registers every table)
 import routers
 from database import Base, engine
+from schemas.common import Health, Message
 
 logging.basicConfig(
     level=logging.INFO,
@@ -79,11 +80,11 @@ async def database_error(request: Request, exc: SQLAlchemyError):
     return JSONResponse(status_code=500, content={"detail": "Error interno de la base de datos"})
 
 
-@app.get("/", tags=["Sistema"], summary="Inicio")
+@app.get("/", response_model=Message, tags=["Sistema"], summary="Inicio")
 def root():
     return {"message": "API del Cotizador IA funcionando"}
 
 
-@app.get("/health", tags=["Sistema"], summary="Estado")
+@app.get("/health", response_model=Health, tags=["Sistema"], summary="Estado")
 def health():
     return {"status": "ok"}

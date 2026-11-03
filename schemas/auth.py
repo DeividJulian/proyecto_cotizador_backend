@@ -34,3 +34,8 @@ class UserOut(BaseModel):
 class SessionOut(BaseModel):
     token: str
     user: UserOut
+
+
+class CodeSent(BaseModel):
+    message: str
+    email: str

@@ -5,11 +5,12 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.rate import Rate
 from models.user import User
-from schemas.rate import RateCreate, RateOut
+from schemas.common import Message, errors
+from schemas.rate import MarketRate, RateCreate, RateOut
 from security import current_user
 from services.rates import MARKET_RATES, reset_rates
 
-router = APIRouter(prefix="/rates", tags=["Tarifas"])
+router = APIRouter(prefix="/rates", tags=["Tarifas"], responses=errors(401, 404, 409, 422))
 
 
 def role_in_use(db: Session, user_id: int, role: str, exclude_id: int | None = None) -> bool:
@@ -35,7 +36,7 @@ def list_rates(db: Session = Depends(get_db), user: User = Depends(current_user)
     return _list(db, user)
 
 
-@router.get("/market", summary="Tarifas de referencia del mercado")
+@router.get("/market", response_model=list[MarketRate], summary="Tarifas de referencia del mercado")
 def market_rates():
     """Valor por hora (COP) de cada rol con el que arranca toda cuenta nueva."""
     return [{"role": role, "hourly_rate": value} for role, value in MARKET_RATES.items()]
@@ -72,7 +73,7 @@ def update_rate(rate_id: int, data: RateCreate, db: Session = Depends(get_db), u
     return rate
 
 
-@router.delete("/{rate_id}", summary="Eliminar tarifa")
+@router.delete("/{rate_id}", response_model=Message, summary="Eliminar tarifa")
 def delete_rate(rate_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     rate = get_rate(db, rate_id, user)
     db.delete(rate)

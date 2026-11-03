@@ -5,14 +5,15 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.user import User
 from routers.quotes import get_quote, require_draft
-from schemas.proposal import ProposalSectionsUpdate
+from schemas.common import errors, json_errors
+from schemas.proposal import ProposalOut, ProposalSectionsUpdate
 from security import current_user
 from services.proposal import build_proposal, numbers_in, quote_code, replace_sections, split_sections
 
-router = APIRouter(prefix="/quotes/{quote_id}/proposal", tags=["Propuesta comercial"])
+router = APIRouter(prefix="/quotes/{quote_id}/proposal", tags=["Propuesta comercial"], responses=errors(401, 404, 409, 422))
 
 
-@router.post("", summary="Generar propuesta")
+@router.post("", response_model=ProposalOut, summary="Generar propuesta")
 def generate(quote_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     """Redacta la propuesta comercial en Markdown con los datos calculados y la guarda."""
     quote = get_quote(db, quote_id, user)
@@ -24,7 +25,7 @@ def generate(quote_id: int, db: Session = Depends(get_db), user: User = Depends(
     return {"quote_id": quote.id, "proposal": quote.proposal}
 
 
-@router.patch("", summary="Cambiar el texto de secciones")
+@router.patch("", response_model=ProposalOut, summary="Cambiar el texto de secciones")
 def update_sections(
     quote_id: int, data: ProposalSectionsUpdate, db: Session = Depends(get_db), user: User = Depends(current_user)
 ):
@@ -52,7 +53,7 @@ def update_sections(
     return {"quote_id": quote.id, "proposal": quote.proposal}
 
 
-@router.get("", summary="Ver propuesta")
+@router.get("", response_model=ProposalOut, summary="Ver propuesta")
 def read(quote_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     quote = get_quote(db, quote_id, user)
     if not quote.proposal:
@@ -60,7 +61,12 @@ def read(quote_id: int, db: Session = Depends(get_db), user: User = Depends(curr
     return {"quote_id": quote.id, "proposal": quote.proposal}
 
 
-@router.get("/download", response_class=PlainTextResponse, summary="Descargar propuesta")
+@router.get(
+    "/download",
+    response_class=PlainTextResponse,
+    responses={200: {"content": {"text/markdown": {}}}, **json_errors(401, 404, 409, 422)},
+    summary="Descargar propuesta",
+)
 def download(quote_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     quote = get_quote(db, quote_id, user)
     if not quote.proposal:

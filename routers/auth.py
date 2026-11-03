@@ -3,7 +3,8 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models.user import User
-from schemas.auth import LoginInput, RegisterInput, SessionOut, UserOut, VerifyInput
+from schemas.auth import CodeSent, LoginInput, RegisterInput, SessionOut, UserOut, VerifyInput
+from schemas.common import errors
 from security import current_user
 from services.auth import (
     CodeCooldown,
@@ -18,7 +19,7 @@ from services.auth import (
 )
 from services.mailer import EmailError
 
-router = APIRouter(prefix="/auth", tags=["Autenticación"])
+router = APIRouter(prefix="/auth", tags=["Autenticación"], responses=errors(400, 401, 404, 409, 422, 429, 502))
 
 
 def _send_code(db: Session, user: User, purpose: str) -> None:
@@ -36,7 +37,7 @@ def _send_code(db: Session, user: User, purpose: str) -> None:
     db.commit()
 
 
-@router.post("/register", status_code=201, summary="Crear cuenta")
+@router.post("/register", response_model=CodeSent, status_code=201, summary="Crear cuenta")
 def register(data: RegisterInput, db: Session = Depends(get_db)):
     """Crea la cuenta y envía un código de verificación al correo. Si nunca se verificó, reenvía el código."""
     user = find_user(db, data.email)
@@ -52,7 +53,7 @@ def register(data: RegisterInput, db: Session = Depends(get_db)):
     return {"message": "Te enviamos un código de verificación al correo", "email": user.email}
 
 
-@router.post("/login", summary="Pedir código para entrar")
+@router.post("/login", response_model=CodeSent, summary="Pedir código para entrar")
 def login(data: LoginInput, db: Session = Depends(get_db)):
     """Envía un código de un solo uso al correo."""
     user = find_user(db, data.email)

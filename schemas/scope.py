@@ -7,3 +7,57 @@ ScopeText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1
 
 class ScopeInput(BaseModel):
     scope_description: ScopeText
+
+
+class ScopeModule(BaseModel):
+    key: str
+    name: str
+    category: str
+    complexity: str
+    matched_keywords: list[str]
+    reasons: str
+
+
+class Analysis(BaseModel):
+    """Result of the scope analysis. A quote that was never analyzed has the empty lists and no confidence."""
+    modules: list[ScopeModule] = []
+    high_complexity_signals: list[str] = []
+    low_complexity_signals: list[str] = []
+    confidence: str | None = None
+    warnings: list[str] = []
+
+
+class RoleHours(BaseModel):
+    optimistic: float
+    likely: float
+    pessimistic: float
+    expected: float
+
+
+class Estimate(BaseModel):
+    """PERT hours by role and in total. Empty (all null) while the quote has no modules."""
+    by_role: dict[str, RoleHours] | None = None
+    hours_optimistic: float | None = None
+    hours_likely: float | None = None
+    hours_pessimistic: float | None = None
+    hours_expected: float | None = None
+    confidence: str | None = None
+
+
+class EstimatedItem(BaseModel):
+    name: str
+    category: str
+    complexity: str
+    source: str
+    split: dict[str, float]
+    reasons: str
+    hours_optimistic: float
+    hours_likely: float
+    hours_pessimistic: float
+    hours_expected: float
+
+
+class ScopeEstimate(BaseModel):
+    analysis: Analysis
+    items: list[EstimatedItem]
+    estimate: Estimate

@@ -3,15 +3,16 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models.user import User
-from schemas.finance import SimulationInput
+from schemas.common import errors
+from schemas.finance import Financials, SimulationInput
 from security import current_user
 from services.finance import MissingRate, calculate_financials
 from services.rates import rates_of
 
-router = APIRouter(prefix="/finance", tags=["Finanzas"])
+router = APIRouter(prefix="/finance", tags=["Finanzas"], responses=errors(401, 409, 422))
 
 
-@router.post("/simulate", summary="Simular precio")
+@router.post("/simulate", response_model=Financials, summary="Simular precio")
 def simulate(data: SimulationInput, db: Session = Depends(get_db), user: User = Depends(current_user)):
     """Calcula el precio de unas horas por rol con tus tarifas (no guarda nada)."""
     try:
