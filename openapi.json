@@ -505,6 +505,34 @@
         "title": "Health",
         "type": "object"
       },
+      "HistogramBin": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "end": {
+            "title": "End",
+            "type": "number"
+          },
+          "over_plan": {
+            "title": "Over Plan",
+            "type": "boolean"
+          },
+          "start": {
+            "title": "Start",
+            "type": "number"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "count",
+          "over_plan"
+        ],
+        "title": "HistogramBin",
+        "type": "object"
+      },
       "ItemCreate": {
         "properties": {
           "category": {
@@ -1807,6 +1835,111 @@
           "hours_by_role"
         ],
         "title": "SimulationInput",
+        "type": "object"
+      },
+      "SimulationRequest": {
+        "properties": {
+          "runs": {
+            "default": 100000,
+            "maximum": 200000.0,
+            "minimum": 1000.0,
+            "title": "Runs",
+            "type": "integer"
+          },
+          "samples": {
+            "default": 0,
+            "maximum": 50000.0,
+            "minimum": 0.0,
+            "title": "Samples",
+            "type": "integer"
+          }
+        },
+        "title": "SimulationRequest",
+        "type": "object"
+      },
+      "SimulationResult": {
+        "description": "Same fields as SimulationResult in proto/cotizador/v1/simulation.proto.",
+        "properties": {
+          "elapsed_ms": {
+            "title": "Elapsed Ms",
+            "type": "integer"
+          },
+          "histogram": {
+            "items": {
+              "$ref": "#/components/schemas/HistogramBin"
+            },
+            "title": "Histogram",
+            "type": "array"
+          },
+          "mean": {
+            "title": "Mean",
+            "type": "number"
+          },
+          "p10": {
+            "title": "P10",
+            "type": "number"
+          },
+          "p50": {
+            "title": "P50",
+            "type": "number"
+          },
+          "p80": {
+            "title": "P80",
+            "type": "number"
+          },
+          "p90": {
+            "title": "P90",
+            "type": "number"
+          },
+          "planned_hours": {
+            "title": "Planned Hours",
+            "type": "number"
+          },
+          "price_p50": {
+            "title": "Price P50",
+            "type": "integer"
+          },
+          "price_p80": {
+            "title": "Price P80",
+            "type": "integer"
+          },
+          "price_p90": {
+            "title": "Price P90",
+            "type": "integer"
+          },
+          "prob_over_plan": {
+            "title": "Prob Over Plan",
+            "type": "number"
+          },
+          "runs": {
+            "title": "Runs",
+            "type": "integer"
+          },
+          "samples": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Samples",
+            "type": "array"
+          }
+        },
+        "required": [
+          "runs",
+          "planned_hours",
+          "mean",
+          "p10",
+          "p50",
+          "p80",
+          "p90",
+          "prob_over_plan",
+          "price_p50",
+          "price_p80",
+          "price_p90",
+          "histogram",
+          "samples",
+          "elapsed_ms"
+        ],
+        "title": "SimulationResult",
         "type": "object"
       },
       "Stats": {
@@ -4283,6 +4416,94 @@
         "summary": "Cotizaciones parecidas",
         "tags": [
           "Cotizaciones"
+        ]
+      }
+    },
+    "/quotes/{quote_id}/simulation": {
+      "post": {
+        "description": "Simula miles de proyectos posibles con las horas PERT de la cotización (no guarda nada).\n\nRespaldo en REST (JSON) del servicio gRPC cotizador.v1.SimulationService/Simulate, que además envía el progreso.",
+        "operationId": "simulate_quote",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "quote_id",
+            "required": true,
+            "schema": {
+              "title": "Quote Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulationResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Falta el token o venció"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No existe o es de otro usuario"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflicto con el estado actual"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Datos inválidos"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Simular el riesgo",
+        "tags": [
+          "Simulación (Monte Carlo)"
         ]
       }
     },

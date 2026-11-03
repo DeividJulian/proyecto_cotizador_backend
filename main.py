@@ -13,6 +13,7 @@ import config
 import models  # noqa: F401  (registers every table)
 import routers
 from database import Base, engine
+from rpc.simulation import simulation_app
 from schemas.common import Health, Message
 
 logging.basicConfig(
@@ -49,6 +50,10 @@ for _, module_name, _ in pkgutil.iter_modules(routers.__path__):
     module = importlib.import_module(f"routers.{module_name}")
     if hasattr(module, "router"):
         app.include_router(module.router)
+
+# gRPC (Connect protocol) on the same service and port: POST /cotizador.v1.SimulationService/Simulate.
+# Render terminates TLS and talks HTTP/1.1 to the app; Connect works over HTTP/1.1, including server streaming.
+app.mount(simulation_app.path, simulation_app)
 
 
 @app.middleware("http")
