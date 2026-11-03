@@ -36,3 +36,12 @@ def test_protected_endpoints_declare_the_jwt():
         if path not in public:
             assert operation.get("security") == [{"HTTPBearer": []}], f"{method.upper()} {path}"
             assert "401" in operation["responses"], f"{method.upper()} {path}"
+
+
+def test_versioned_contract_is_up_to_date():
+    """openapi.json is the contract the front is generated from: it must match what the app publishes."""
+    import json
+    from pathlib import Path
+
+    saved = json.loads((Path(__file__).resolve().parent.parent / "openapi.json").read_text(encoding="utf-8"))
+    assert saved == app.openapi(), "openapi.json está desactualizado: corre python scripts/export_openapi.py"
