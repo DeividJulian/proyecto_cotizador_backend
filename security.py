@@ -7,7 +7,7 @@ from database import get_db
 from models.user import User
 from services.auth import read_token
 
-bearer = HTTPBearer(auto_error=False, description="Token returned by /auth/verify")
+bearer = HTTPBearer(auto_error=False, description="Token que devuelve /auth/verify")
 
 
 def current_user(

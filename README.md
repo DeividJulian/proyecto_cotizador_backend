@@ -98,6 +98,29 @@ Una cotización enviada queda congelada; para editarla hay que devolverla a borr
 
 CORS: solo el front de Vercel y `localhost:4200` pueden llamar al API desde el navegador (`CORS_ORIGINS`).
 
+## Contrato de la API (contract-first)
+`openapi.json` es la **única fuente de verdad** de la API: rutas, parámetros, esquemas, códigos de error y la seguridad
+JWT (`HTTPBearer`). Está versionado en el repo, el front genera sus tipos y su cliente desde ese archivo
+(`npm run gen:api`) y una prueba falla si el archivo no coincide con lo que publica la app.
+
+```bash
+python scripts/export_openapi.py           # regenera openapi.json (usa SQLite en memoria, nunca Neon)
+python scripts/export_openapi.py --check   # falla si está desactualizado
+```
+
+### Cómo agregar un endpoint
+1. **Primero el contrato:** define los esquemas Pydantic de entrada y de salida en `schemas/` (nada de devolver
+   diccionarios sueltos) y los errores con `errors(...)` de `schemas/common.py`.
+2. Declara la ruta en `routers/` con `response_model=` y un `summary` en español, y deja la lógica en `services/`.
+3. Corre `python scripts/export_openapi.py` y revisa el cambio de `openapi.json` en el diff: ese diff **es** el cambio
+   de contrato.
+4. Agrega las pruebas y haz commit del código junto con `openapi.json`.
+5. En el front, `npm run gen:api` regenera los tipos: si cambió o desapareció un campo, el front deja de compilar
+   donde lo usa.
+
+`tests/test_openapi.py` exige que cada endpoint JSON tenga `response_model`, que los errores usen el esquema `Error`
+y que las rutas protegidas declaren el JWT.
+
 ## Pruebas
 ```bash
 pytest
