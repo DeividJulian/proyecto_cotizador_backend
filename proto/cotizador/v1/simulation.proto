@@ -1,5 +1,5 @@
 // Contract of the Monte Carlo simulation over Connect (gRPC-compatible, Protobuf over HTTP/1.1).
-// Source of truth for the server code (backend/grpc_gen) and the browser client (front: src/app/grpc/gen).
+// Source of truth for the server code (backend/proto_gen) and the browser client (front: src/app/grpc/gen).
 // Regenerate both with: python scripts/gen_proto.py (backend) and npm run gen:proto (front).
 syntax = "proto3";
 
