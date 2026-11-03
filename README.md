@@ -95,6 +95,7 @@ Una cotización enviada queda congelada; para editarla hay que devolverla a borr
 | Propuesta | `/quotes/{id}/proposal` y `/download` |
 | Estadísticas | `GET /stats`, `POST /seed` |
 | IA | `GET /ai/status`, `POST /ai/quotes/{id}/scope-review`, `/explain-price`, `/client-questions`, `/improve-proposal`; `PATCH /quotes/{id}/proposal` aplica las secciones aceptadas |
+| Simulación | `POST /quotes/{id}/simulation` (REST) y `cotizador.v1.SimulationService/Simulate` (gRPC con streaming, ver abajo) |
 
 CORS: solo el front de Vercel y `localhost:4200` pueden llamar al API desde el navegador (`CORS_ORIGINS`).
 
@@ -121,9 +122,72 @@ python scripts/export_openapi.py --check   # falla si está desactualizado
 `tests/test_openapi.py` exige que cada endpoint JSON tenga `response_model`, que los errores usen el esquema `Error`
 y que las rutas protegidas declaren el JWT.
 
+## gRPC: simulación Monte Carlo con streaming
+Caso de uso: simular miles de proyectos posibles con las horas PERT de una cotización guardada. Por gRPC el servidor
+**envía el progreso mientras calcula** (server streaming) y el resultado al final; por REST llega todo junto.
+
+| Pieza | Dónde |
+|---|---|
+| Contrato | `proto/cotizador/v1/simulation.proto` (`SimulationService.Simulate`, `returns (stream SimulateEvent)`) |
+| Código generado | `proto_gen/` con `python scripts/gen_proto.py` (protoc de `grpcio-tools` + `protoc-gen-connectrpc`); `--check` y `tests/test_proto.py` fallan si está desactualizado |
+| Lógica (una sola) | `services/simulation.py`: Beta-PERT vectorizado con numpy, semilla fija |
+| Servicio gRPC | `rpc/simulation.py`, montado en la misma app: `POST /cotizador.v1.SimulationService/Simulate` |
+| Respaldo REST | `POST /quotes/{id}/simulation` llama al mismo generador y devuelve solo el resultado |
+
+**Seguridad:** el JWT viaja como metadata (`authorization: Bearer <token>`) y se valida con la misma función que REST
+(`security.user_from_token`). Solo el dueño puede simular su cotización: las ajenas responden `NOT_FOUND`, igual que el
+404 de REST. Errores: `UNAUTHENTICATED` (sin token o vencido), `NOT_FOUND`, `FAILED_PRECONDITION` (sin analizar) e
+`INVALID_ARGUMENT` (fuera de 1.000 a 200.000 simulaciones), todos con el mensaje en español.
+
+### Por qué Connect y no gRPC-Web con Envoy
+| Opción | ¿Proxy aparte? | Streaming desde el navegador | En Render gratis |
+|---|---|---|---|
+| gRPC nativo (HTTP/2 de punta a punta) | — | No: los navegadores no exponen tramas HTTP/2 | No: Render termina TLS y habla HTTP/1.1 con la app |
+| gRPC-Web + Envoy | Sí, un servicio más que mantener y pagar | Solo server streaming | Habría que desplegar Envoy aparte |
+| **Connect (connectrpc)** | **No** | **Server streaming** | **Sí, en el mismo servicio y puerto** |
+
+Connect usa el mismo `.proto`, mensajes Protobuf binarios y los mismos códigos de error que gRPC, y funciona sobre
+HTTP/1.1. El servidor Python (`connectrpc` 0.13, beta) también entiende gRPC y gRPC-Web, así que un cliente gRPC
+podría usarlo si hubiera HTTP/2 de punta a punta. Fuentes: [connect-python](https://github.com/connectrpc/connect-python),
+[Connect en el navegador](https://connectrpc.com/docs/web/getting-started/),
+[foro de Render sobre gRPC](https://community.render.com/t/unexpected-http-1-x-request/7359).
+
+### REST (JSON) frente a gRPC (Protobuf): medición
+Con `cotizador-front/scripts/compare-protocols.mts`, que usa el mismo cliente generado que el navegador
+(`@connectrpc/connect-web`) y cuenta los bytes exactos de cada respuesta. Cotización «Tienda en línea de café»
+(7 módulos y 3 transversales), backend local, mediana de 5 corridas:
+
+| Volumen | Mensaje REST | Mensaje gRPC | Con gzip REST / gRPC | Primer dato REST / gRPC | Total REST / gRPC |
+|---|---:|---:|---:|---:|---:|
+| 100.000 simulaciones, sin totales | 1,9 kB | 0,9 kB (−51 %) | 0,5 / 0,5 kB | 72 / 15 ms | 72 / 80 ms |
+| 100.000 simulaciones, 10.000 totales | 60,5 kB | 40 kB (−34 %) | 19 / 19,8 kB | 74 / 13 ms | 74 / 81 ms |
+| 200.000 simulaciones, 50.000 totales | 294,9 kB | 196,3 kB (−33 %) | 89,6 / 91,4 kB | 150 / 23 ms | 150 / 156 ms |
+
+Lo que muestran las cifras:
+- **Protobuf pesa un tercio menos** sin comprimir. Con gzip quedan casi iguales: JSON tiene mucho texto repetido y se
+  comprime muy bien.
+- **El tipo del campo importa.** Con `double` (8 bytes) los totales con un decimal pesaban **más** que en JSON
+  (79,1 kB contra 60,5 kB), porque `205.2,` ocupa 6 caracteres. Con `float` (4 bytes) bajó a 40 kB. En contract-first
+  esa decisión se toma en el contrato.
+- **El streaming no hace más rápido el cálculo**, pero el primer dato llega en unos 15 ms en lugar de esperar todo: la
+  pantalla muestra el progreso real. El total de gRPC es unos ms mayor por los 11 mensajes y el cálculo por partes.
+
+Para repetirla contra producción: `API_URL=https://cotizador-backend-c0ul.onrender.com TOKEN=<tu JWT> QUOTE_ID=<id>
+node scripts/compare-protocols.mts` en el front, o el botón **Comparar los dos** de la pestaña Riesgo.
+
+### ¿Cuándo conviene cada estilo?
+| Estilo | Conviene cuando… | En este proyecto |
+|---|---|---|
+| REST + OpenAPI | Recursos CRUD, caché HTTP, cualquier cliente y herramientas estándar | Toda la API (cotizaciones, tarifas, IA) |
+| GraphQL | Muchas pantallas que piden combinaciones distintas de datos anidados | No: pocas pantallas, y el contrato OpenAPI ya da tipos de extremo a extremo |
+| gRPC-Web / Connect | Contratos estrictos, mensajes binarios, streaming del servidor | La simulación Monte Carlo con progreso |
+| tRPC | Backend **y** frontend en TypeScript, que comparten tipos sin contrato | No aplica: el backend es Python |
+
 ## Pruebas
 ```bash
 pytest
 ```
-160 pruebas sobre SQLite: nunca tocan la base de Neon, no envían correos reales (leen los códigos de una bandeja en
-memoria) y nunca llaman a Groq (las respuestas del modelo se simulan a nivel HTTP).
+177 pruebas sobre SQLite: nunca tocan la base de Neon, no envían correos reales (leen los códigos de una bandeja en
+memoria) y nunca llaman a Groq (las respuestas del modelo se simulan a nivel HTTP). `tests/test_simulation.py` levanta
+la app en un puerto local y llama al servicio gRPC con el cliente generado: éxito, mismo resultado que REST, sin token,
+token inválido, cotización ajena, sin analizar y fuera de rango.
