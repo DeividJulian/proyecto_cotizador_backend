@@ -7,3 +7,6 @@ email-validator
 python-dotenv
 PyJWT
 httpx
+connectrpc==0.13.0
+protobuf>=7.36
+numpy

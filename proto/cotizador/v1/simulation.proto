@@ -1,0 +1,62 @@
+// Contract of the Monte Carlo simulation over Connect (gRPC-compatible, Protobuf over HTTP/1.1).
+// Source of truth for the server code (backend/grpc_gen) and the browser client (front: src/app/grpc/gen).
+// Regenerate both with: python scripts/gen_proto.py (backend) and npm run gen:proto (front).
+syntax = "proto3";
+
+package cotizador.v1;
+
+// Simulates thousands of possible projects from the PERT hours of a saved quote.
+// Requires the same JWT as the REST API, sent as the "authorization: Bearer <token>" header (metadata).
+service SimulationService {
+  // Server streaming: several Progress events and, at the end, one Result.
+  rpc Simulate(SimulateRequest) returns (stream SimulateEvent);
+}
+
+message SimulateRequest {
+  int64 quote_id = 1;
+  // Number of simulated projects (1.000 to 200.000).
+  int32 runs = 2;
+  // How many simulated totals to send back (0 to 50.000), for the REST vs gRPC size comparison.
+  int32 samples = 3;
+}
+
+message SimulateEvent {
+  oneof event {
+    Progress progress = 1;
+    SimulationResult result = 2;
+  }
+}
+
+message Progress {
+  int32 done = 1;
+  int32 total = 2;
+}
+
+message HistogramBin {
+  double start = 1;
+  double end = 2;
+  int32 count = 3;
+  // true when the whole bin is above the quoted hours
+  bool over_plan = 4;
+}
+
+message SimulationResult {
+  int32 runs = 1;
+  // Hours the quote promises (sum of the expected PERT hours)
+  double planned_hours = 2;
+  double mean = 3;
+  double p10 = 4;
+  double p50 = 5;
+  double p80 = 6;
+  double p90 = 7;
+  // Probability (0 to 1) that the project needs more hours than quoted
+  double prob_over_plan = 8;
+  // Price in whole Colombian pesos at each percentile (same price per hour as the quote)
+  int64 price_p50 = 9;
+  int64 price_p80 = 10;
+  int64 price_p90 = 11;
+  repeated HistogramBin histogram = 12;
+  // A sample of the simulated totals, in hours (packed: 8 bytes each)
+  repeated double samples = 13;
+  int32 elapsed_ms = 14;
+}
