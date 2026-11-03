@@ -56,7 +56,8 @@ message SimulationResult {
   int64 price_p80 = 10;
   int64 price_p90 = 11;
   repeated HistogramBin histogram = 12;
-  // A sample of the simulated totals, in hours (packed: 8 bytes each)
-  repeated double samples = 13;
+  // A sample of the simulated totals, in hours with one decimal. float (4 bytes) and not double (8 bytes):
+  // with double, Protobuf weighed MORE than JSON, where "205.2," takes 6 characters.
+  repeated float samples = 13;
   int32 elapsed_ms = 14;
 }
