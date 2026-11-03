@@ -62,6 +62,10 @@ async def log_requests(request: Request, call_next):
     response = await call_next(request)
     ms = (time.perf_counter() - start) * 1000
     logger.info("%s %s -> %s (%.0f ms)", request.method, request.url.path, response.status_code, ms)
+    # Lets the front read the real transfer size in the browser's Resource Timing (REST vs gRPC comparison)
+    origin = request.headers.get("origin")
+    if origin in config.CORS_ORIGINS:
+        response.headers["Timing-Allow-Origin"] = origin
     return response
 
 

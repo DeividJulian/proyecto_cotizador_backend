@@ -31,3 +31,9 @@ def test_cors_only_allows_the_front(anonymous):
 def test_cors_exposes_retry_after(anonymous):
     r = anonymous.get("/health", headers={"Origin": "https://cotizador-front-eight.vercel.app"})
     assert "retry-after" in r.headers.get("access-control-expose-headers", "").lower()
+
+
+def test_timing_allow_origin_only_for_the_front(anonymous):
+    front = anonymous.get("/health", headers={"Origin": "https://cotizador-front-eight.vercel.app"})
+    assert front.headers["timing-allow-origin"] == "https://cotizador-front-eight.vercel.app"
+    assert "timing-allow-origin" not in anonymous.get("/health", headers={"Origin": "https://evil.example.com"}).headers
