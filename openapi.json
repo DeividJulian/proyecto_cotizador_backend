@@ -1923,7 +1923,7 @@
   "paths": {
     "/": {
       "get": {
-        "operationId": "root__get",
+        "operationId": "root",
         "responses": {
           "200": {
             "content": {
@@ -1945,7 +1945,7 @@
     "/ai/quotes/{quote_id}/client-questions": {
       "post": {
         "description": "Preguntas para hacerle al cliente y riesgos que podrían aumentar las horas.",
-        "operationId": "client_questions_ai_quotes__quote_id__client_questions_post",
+        "operationId": "client_questions",
         "parameters": [
           {
             "in": "path",
@@ -2053,7 +2053,7 @@
     "/ai/quotes/{quote_id}/explain-price": {
       "post": {
         "description": "Explica en palabras sencillas el precio que calculó el sistema y cómo podría bajar. No cambia ninguna cifra.",
-        "operationId": "explain_price_ai_quotes__quote_id__explain_price_post",
+        "operationId": "explain_price",
         "parameters": [
           {
             "in": "path",
@@ -2161,7 +2161,7 @@
     "/ai/quotes/{quote_id}/improve-proposal": {
       "post": {
         "description": "Propone una mejor redacción de las secciones de texto, con las mismas cifras. No guarda nada.",
-        "operationId": "improve_proposal_ai_quotes__quote_id__improve_proposal_post",
+        "operationId": "improve_proposal",
         "parameters": [
           {
             "in": "path",
@@ -2269,7 +2269,7 @@
     "/ai/quotes/{quote_id}/scope-review": {
       "post": {
         "description": "Módulos del catálogo que la descripción pide y el análisis no detectó, y datos que faltan. No cambia nada.",
-        "operationId": "scope_review_ai_quotes__quote_id__scope_review_post",
+        "operationId": "scope_review",
         "parameters": [
           {
             "in": "path",
@@ -2377,7 +2377,7 @@
     "/ai/status": {
       "get": {
         "description": "Indica si la IA está configurada, con qué proveedor y qué modelo usa.",
-        "operationId": "ai_status_ai_status_get",
+        "operationId": "ai_status",
         "responses": {
           "200": {
             "content": {
@@ -2474,7 +2474,7 @@
     "/auth/login": {
       "post": {
         "description": "Envía un código de un solo uso al correo.",
-        "operationId": "login_auth_login_post",
+        "operationId": "login",
         "requestBody": {
           "content": {
             "application/json": {
@@ -2575,7 +2575,7 @@
     },
     "/auth/me": {
       "get": {
-        "operationId": "me_auth_me_get",
+        "operationId": "current_account",
         "responses": {
           "200": {
             "content": {
@@ -2672,7 +2672,7 @@
     "/auth/register": {
       "post": {
         "description": "Crea la cuenta y envía un código de verificación al correo. Si nunca se verificó, reenvía el código.",
-        "operationId": "register_auth_register_post",
+        "operationId": "register",
         "requestBody": {
           "content": {
             "application/json": {
@@ -2774,7 +2774,7 @@
     "/auth/verify": {
       "post": {
         "description": "Valida el código del correo y devuelve el token de sesión. La primera vez activa la cuenta.",
-        "operationId": "verify_auth_verify_post",
+        "operationId": "verify",
         "requestBody": {
           "content": {
             "application/json": {
@@ -2876,7 +2876,7 @@
     "/finance/simulate": {
       "post": {
         "description": "Calcula el precio de unas horas por rol con tus tarifas (no guarda nada).",
-        "operationId": "simulate_finance_simulate_post",
+        "operationId": "simulate_price",
         "requestBody": {
           "content": {
             "application/json": {
@@ -2942,7 +2942,7 @@
     },
     "/health": {
       "get": {
-        "operationId": "health_health_get",
+        "operationId": "health",
         "responses": {
           "200": {
             "content": {
@@ -2963,7 +2963,7 @@
     },
     "/quotes": {
       "get": {
-        "operationId": "list_quotes_quotes_get",
+        "operationId": "list_quotes",
         "parameters": [
           {
             "in": "query",
@@ -2990,7 +2990,7 @@
                   "items": {
                     "$ref": "#/components/schemas/QuoteSummary"
                   },
-                  "title": "Response List Quotes Quotes Get",
+                  "title": "Response List Quotes",
                   "type": "array"
                 }
               }
@@ -3049,7 +3049,7 @@
         ]
       },
       "post": {
-        "operationId": "create_quote_quotes_post",
+        "operationId": "create_quote",
         "requestBody": {
           "content": {
             "application/json": {
@@ -3125,7 +3125,7 @@
     },
     "/quotes/{quote_id}": {
       "delete": {
-        "operationId": "delete_quote_quotes__quote_id__delete",
+        "operationId": "delete_quote",
         "parameters": [
           {
             "in": "path",
@@ -3200,7 +3200,7 @@
         ]
       },
       "get": {
-        "operationId": "read_quote_quotes__quote_id__get",
+        "operationId": "read_quote",
         "parameters": [
           {
             "in": "path",
@@ -3275,7 +3275,7 @@
         ]
       },
       "put": {
-        "operationId": "update_quote_quotes__quote_id__put",
+        "operationId": "update_quote",
         "parameters": [
           {
             "in": "path",
@@ -3363,7 +3363,7 @@
     "/quotes/{quote_id}/analyze": {
       "post": {
         "description": "Detecta los módulos, estima las horas con PERT y calcula el precio.",
-        "operationId": "analyze_quote_quotes__quote_id__analyze_post",
+        "operationId": "analyze_quote",
         "parameters": [
           {
             "in": "path",
@@ -3440,7 +3440,7 @@
     },
     "/quotes/{quote_id}/items": {
       "get": {
-        "operationId": "list_items_quotes__quote_id__items_get",
+        "operationId": "list_items",
         "parameters": [
           {
             "in": "path",
@@ -3460,7 +3460,7 @@
                   "items": {
                     "$ref": "#/components/schemas/ItemOut"
                   },
-                  "title": "Response List Items Quotes  Quote Id  Items Get",
+                  "title": "Response List Items",
                   "type": "array"
                 }
               }
@@ -3519,7 +3519,7 @@
         ]
       },
       "post": {
-        "operationId": "add_item_quotes__quote_id__items_post",
+        "operationId": "add_item",
         "parameters": [
           {
             "in": "path",
@@ -3606,7 +3606,7 @@
     },
     "/quotes/{quote_id}/items/{item_id}": {
       "delete": {
-        "operationId": "delete_item_quotes__quote_id__items__item_id__delete",
+        "operationId": "delete_item",
         "parameters": [
           {
             "in": "path",
@@ -3691,7 +3691,7 @@
       },
       "put": {
         "description": "Ajusta un módulo. Si venía del análisis pasa a manual, para que un nuevo análisis no lo pise.",
-        "operationId": "update_item_quotes__quote_id__items__item_id__put",
+        "operationId": "update_item",
         "parameters": [
           {
             "in": "path",
@@ -3787,7 +3787,7 @@
     },
     "/quotes/{quote_id}/proposal": {
       "get": {
-        "operationId": "read_quotes__quote_id__proposal_get",
+        "operationId": "read_proposal",
         "parameters": [
           {
             "in": "path",
@@ -3863,7 +3863,7 @@
       },
       "patch": {
         "description": "Reemplaza el texto de algunas secciones (por ejemplo, la redacción sugerida por la IA).\n\nCada sección debe conservar exactamente las mismas cifras: montos, horas, semanas, fechas y porcentajes.",
-        "operationId": "update_sections_quotes__quote_id__proposal_patch",
+        "operationId": "update_proposal_sections",
         "parameters": [
           {
             "in": "path",
@@ -3949,7 +3949,7 @@
       },
       "post": {
         "description": "Redacta la propuesta comercial en Markdown con los datos calculados y la guarda.",
-        "operationId": "generate_quotes__quote_id__proposal_post",
+        "operationId": "generate_proposal",
         "parameters": [
           {
             "in": "path",
@@ -4026,7 +4026,7 @@
     },
     "/quotes/{quote_id}/proposal/download": {
       "get": {
-        "operationId": "download_quotes__quote_id__proposal_download_get",
+        "operationId": "download_proposal",
         "parameters": [
           {
             "in": "path",
@@ -4041,8 +4041,7 @@
         "responses": {
           "200": {
             "content": {
-              "text/markdown": {},
-              "text/plain": {
+              "text/markdown": {
                 "schema": {
                   "type": "string"
                 }
@@ -4105,7 +4104,7 @@
     "/quotes/{quote_id}/similar": {
       "get": {
         "description": "Tus cotizaciones anteriores con un alcance parecido (TF-IDF y coseno): sirven de referencia de precio.",
-        "operationId": "similar_quotes_quotes__quote_id__similar_get",
+        "operationId": "similar_quotes",
         "parameters": [
           {
             "in": "path",
@@ -4137,7 +4136,7 @@
                   "items": {
                     "$ref": "#/components/schemas/SimilarQuote"
                   },
-                  "title": "Response Similar Quotes Quotes  Quote Id  Similar Get",
+                  "title": "Response Similar Quotes",
                   "type": "array"
                 }
               }
@@ -4199,7 +4198,7 @@
     "/quotes/{quote_id}/status": {
       "post": {
         "description": "Seguimiento de la propuesta: borrador → enviada al cliente → aceptada o rechazada.",
-        "operationId": "change_status_quotes__quote_id__status_post",
+        "operationId": "change_status",
         "parameters": [
           {
             "in": "path",
@@ -4287,7 +4286,7 @@
     "/quotes/{quote_id}/summary": {
       "get": {
         "description": "Vista compacta para tarjetas: total, horas, duración y confianza.",
-        "operationId": "quote_summary_quotes__quote_id__summary_get",
+        "operationId": "quote_summary",
         "parameters": [
           {
             "in": "path",
@@ -4364,7 +4363,7 @@
     },
     "/rates": {
       "get": {
-        "operationId": "list_rates_rates_get",
+        "operationId": "list_rates",
         "responses": {
           "200": {
             "content": {
@@ -4373,7 +4372,7 @@
                   "items": {
                     "$ref": "#/components/schemas/RateOut"
                   },
-                  "title": "Response List Rates Rates Get",
+                  "title": "Response List Rates",
                   "type": "array"
                 }
               }
@@ -4432,7 +4431,7 @@
         ]
       },
       "post": {
-        "operationId": "create_rate_rates_post",
+        "operationId": "create_rate",
         "requestBody": {
           "content": {
             "application/json": {
@@ -4509,7 +4508,7 @@
     "/rates/market": {
       "get": {
         "description": "Valor por hora (COP) de cada rol con el que arranca toda cuenta nueva.",
-        "operationId": "market_rates_rates_market_get",
+        "operationId": "market_rates",
         "responses": {
           "200": {
             "content": {
@@ -4518,7 +4517,7 @@
                   "items": {
                     "$ref": "#/components/schemas/MarketRate"
                   },
-                  "title": "Response Market Rates Rates Market Get",
+                  "title": "Response Market Rates",
                   "type": "array"
                 }
               }
@@ -4575,7 +4574,7 @@
     "/rates/reset": {
       "post": {
         "description": "Reemplaza tus tarifas por las de referencia del mercado.",
-        "operationId": "reset_rates_reset_post",
+        "operationId": "reset_to_market",
         "responses": {
           "200": {
             "content": {
@@ -4584,7 +4583,7 @@
                   "items": {
                     "$ref": "#/components/schemas/RateOut"
                   },
-                  "title": "Response Reset Rates Reset Post",
+                  "title": "Response Reset To Market",
                   "type": "array"
                 }
               }
@@ -4645,7 +4644,7 @@
     },
     "/rates/{rate_id}": {
       "delete": {
-        "operationId": "delete_rate_rates__rate_id__delete",
+        "operationId": "delete_rate",
         "parameters": [
           {
             "in": "path",
@@ -4720,7 +4719,7 @@
         ]
       },
       "put": {
-        "operationId": "update_rate_rates__rate_id__put",
+        "operationId": "update_rate",
         "parameters": [
           {
             "in": "path",
@@ -4808,7 +4807,7 @@
     "/scope/analyze": {
       "post": {
         "description": "Detecta los módulos, la complejidad y la confianza de una descripción de proyecto (no guarda nada).",
-        "operationId": "analyze_scope_analyze_post",
+        "operationId": "analyze_scope_text",
         "requestBody": {
           "content": {
             "application/json": {
@@ -4865,7 +4864,7 @@
     "/scope/estimate": {
       "post": {
         "description": "Estima las horas por módulo y por rol con PERT (no guarda nada).",
-        "operationId": "estimate_scope_estimate_post",
+        "operationId": "estimate_scope",
         "requestBody": {
           "content": {
             "application/json": {
@@ -4922,7 +4921,7 @@
     "/seed": {
       "post": {
         "description": "Carga cotizaciones de ejemplo en tu cuenta. Con reset=true primero borra todas tus cotizaciones.",
-        "operationId": "seed_seed_post",
+        "operationId": "load_example_quotes",
         "parameters": [
           {
             "in": "query",
@@ -4991,7 +4990,7 @@
     "/stats": {
       "get": {
         "description": "Cotizaciones por estado, tasa de cierre, ticket promedio, horas y módulos más cotizados.",
-        "operationId": "stats_stats_get",
+        "operationId": "my_stats",
         "responses": {
           "200": {
             "content": {

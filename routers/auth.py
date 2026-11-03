@@ -81,5 +81,5 @@ def verify(data: VerifyInput, db: Session = Depends(get_db)):
 
 
 @router.get("/me", response_model=UserOut, summary="Usuario actual")
-def me(user: User = Depends(current_user)):
+def current_account(user: User = Depends(current_user)):
     return user

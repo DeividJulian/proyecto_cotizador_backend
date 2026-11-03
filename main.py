@@ -29,6 +29,8 @@ app = FastAPI(
     description="Convierte la descripción de un proyecto de software en una cotización: módulos, horas PERT, "
     "precio y propuesta comercial.",
     version="2.0.0",
+    # operationId = the Python function name (listQuotes, not list_quotes_quotes_get): it names the generated client
+    generate_unique_id_function=lambda route: route.name,
 )
 
 # Only the front (Vercel and local development) may call the API from a browser

@@ -12,6 +12,6 @@ router = APIRouter(tags=["Estadísticas"], responses=errors(401))
 
 
 @router.get("/stats", response_model=Stats, summary="Mi tablero")
-def stats(db: Session = Depends(get_db), user: User = Depends(current_user)):
+def my_stats(db: Session = Depends(get_db), user: User = Depends(current_user)):
     """Cotizaciones por estado, tasa de cierre, ticket promedio, horas y módulos más cotizados."""
     return calculate_stats(db, user.id)

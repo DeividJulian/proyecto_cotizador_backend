@@ -13,7 +13,7 @@ router = APIRouter(prefix="/finance", tags=["Finanzas"], responses=errors(401, 4
 
 
 @router.post("/simulate", response_model=Financials, summary="Simular precio")
-def simulate(data: SimulationInput, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def simulate_price(data: SimulationInput, db: Session = Depends(get_db), user: User = Depends(current_user)):
     """Calcula el precio de unas horas por rol con tus tarifas (no guarda nada)."""
     try:
         return calculate_financials(

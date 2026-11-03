@@ -10,13 +10,13 @@ router = APIRouter(prefix="/scope", tags=["Alcance"], dependencies=[Depends(curr
 
 
 @router.post("/analyze", response_model=Analysis, summary="Analizar alcance")
-def analyze(data: ScopeInput):
+def analyze_scope_text(data: ScopeInput):
     """Detecta los módulos, la complejidad y la confianza de una descripción de proyecto (no guarda nada)."""
     return analyze_scope(data.scope_description)
 
 
 @router.post("/estimate", response_model=ScopeEstimate, summary="Estimar alcance")
-def estimate(data: ScopeInput):
+def estimate_scope(data: ScopeInput):
     """Estima las horas por módulo y por rol con PERT (no guarda nada)."""
     analysis = analyze_scope(data.scope_description)
     if not analysis["modules"]:

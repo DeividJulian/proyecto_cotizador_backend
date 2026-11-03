@@ -10,11 +10,15 @@ from schemas.proposal import ProposalOut, ProposalSectionsUpdate
 from security import current_user
 from services.proposal import build_proposal, numbers_in, quote_code, replace_sections, split_sections
 
+class MarkdownResponse(PlainTextResponse):
+    media_type = "text/markdown"
+
+
 router = APIRouter(prefix="/quotes/{quote_id}/proposal", tags=["Propuesta comercial"], responses=errors(401, 404, 409, 422))
 
 
 @router.post("", response_model=ProposalOut, summary="Generar propuesta")
-def generate(quote_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def generate_proposal(quote_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     """Redacta la propuesta comercial en Markdown con los datos calculados y la guarda."""
     quote = get_quote(db, quote_id, user)
     require_draft(quote)
@@ -26,7 +30,7 @@ def generate(quote_id: int, db: Session = Depends(get_db), user: User = Depends(
 
 
 @router.patch("", response_model=ProposalOut, summary="Cambiar el texto de secciones")
-def update_sections(
+def update_proposal_sections(
     quote_id: int, data: ProposalSectionsUpdate, db: Session = Depends(get_db), user: User = Depends(current_user)
 ):
     """Reemplaza el texto de algunas secciones (por ejemplo, la redacción sugerida por la IA).
@@ -54,7 +58,7 @@ def update_sections(
 
 
 @router.get("", response_model=ProposalOut, summary="Ver propuesta")
-def read(quote_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def read_proposal(quote_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     quote = get_quote(db, quote_id, user)
     if not quote.proposal:
         raise HTTPException(status_code=404, detail="Esta cotización aún no tiene propuesta")
@@ -63,16 +67,15 @@ def read(quote_id: int, db: Session = Depends(get_db), user: User = Depends(curr
 
 @router.get(
     "/download",
-    response_class=PlainTextResponse,
-    responses={200: {"content": {"text/markdown": {}}}, **json_errors(401, 404, 409, 422)},
+    response_class=MarkdownResponse,
+    responses=json_errors(401, 404, 409, 422),
     summary="Descargar propuesta",
 )
-def download(quote_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def download_proposal(quote_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     quote = get_quote(db, quote_id, user)
     if not quote.proposal:
         raise HTTPException(status_code=404, detail="Esta cotización aún no tiene propuesta")
-    return PlainTextResponse(
+    return MarkdownResponse(
         quote.proposal,
-        media_type="text/markdown; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="propuesta-{quote_code(quote.id)}.md"'},
     )

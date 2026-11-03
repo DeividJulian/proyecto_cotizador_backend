@@ -54,7 +54,7 @@ def create_rate(data: RateCreate, db: Session = Depends(get_db), user: User = De
 
 
 @router.post("/reset", response_model=list[RateOut], summary="Restablecer tarifas de mercado")
-def reset(db: Session = Depends(get_db), user: User = Depends(current_user)):
+def reset_to_market(db: Session = Depends(get_db), user: User = Depends(current_user)):
     """Reemplaza tus tarifas por las de referencia del mercado."""
     reset_rates(db, user)
     db.commit()

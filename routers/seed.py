@@ -13,7 +13,7 @@ router = APIRouter(tags=["Datos de ejemplo"], responses=errors(401, 409, 422))
 
 
 @router.post("/seed", response_model=SeedResult, summary="Cargar ejemplos")
-def seed(reset: bool = False, db: Session = Depends(get_db), user: User = Depends(current_user)):
+def load_example_quotes(reset: bool = False, db: Session = Depends(get_db), user: User = Depends(current_user)):
     """Carga cotizaciones de ejemplo en tu cuenta. Con reset=true primero borra todas tus cotizaciones."""
     if has_quotes(db, user.id):
         if not reset:
