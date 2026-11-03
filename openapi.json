@@ -76,6 +76,13 @@
             "type": "array"
           }
         },
+        "required": [
+          "modules",
+          "high_complexity_signals",
+          "low_complexity_signals",
+          "confidence",
+          "warnings"
+        ],
         "title": "Analysis",
         "type": "object"
       },
@@ -218,6 +225,14 @@
             "title": "Hours Pessimistic"
           }
         },
+        "required": [
+          "by_role",
+          "hours_optimistic",
+          "hours_likely",
+          "hours_pessimistic",
+          "hours_expected",
+          "confidence"
+        ],
         "title": "Estimate",
         "type": "object"
       },
@@ -460,6 +475,20 @@
             "title": "Vat"
           }
         },
+        "required": [
+          "by_role",
+          "direct_cost",
+          "contingency",
+          "margin",
+          "subtotal",
+          "discount",
+          "taxable_base",
+          "vat",
+          "total",
+          "duration_weeks",
+          "payment_milestones",
+          "params"
+        ],
         "title": "Financials",
         "type": "object"
       },

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SimulationInput(BaseModel):
@@ -32,6 +32,9 @@ class FinanceParams(BaseModel):
 
 class Financials(BaseModel):
     """Price in whole Colombian pesos. Empty (all null) while the quote has no modules."""
+    # The API always sends every key (null when empty): the published output schema marks them as required
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     by_role: list[RoleCost] | None = None
     direct_cost: int | None = None
     contingency: int | None = None

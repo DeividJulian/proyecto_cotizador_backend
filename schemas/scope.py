@@ -1,6 +1,6 @@
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, StringConstraints
+from pydantic import BaseModel, ConfigDict, StringConstraints
 
 Level = Literal["low", "medium", "high"]  # complexity and confidence
 Source = Literal["ai", "manual"]  # ai: detected by the analysis
@@ -23,6 +23,9 @@ class ScopeModule(BaseModel):
 
 class Analysis(BaseModel):
     """Result of the scope analysis. A quote that was never analyzed has the empty lists and no confidence."""
+    # The API always sends every key (null when empty): the published output schema marks them as required
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     modules: list[ScopeModule] = []
     high_complexity_signals: list[str] = []
     low_complexity_signals: list[str] = []
@@ -39,6 +42,9 @@ class RoleHours(BaseModel):
 
 class Estimate(BaseModel):
     """PERT hours by role and in total. Empty (all null) while the quote has no modules."""
+    # The API always sends every key (null when empty): the published output schema marks them as required
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     by_role: dict[str, RoleHours] | None = None
     hours_optimistic: float | None = None
     hours_likely: float | None = None
