@@ -63,6 +63,7 @@ Para pasar datos guardados con la versión anterior (estados `borrador`, roles e
 3. `POST /auth/verify` (email, code) → devuelve el token. Envíalo como `Authorization: Bearer <token>`.
    La primera verificación activa la cuenta y carga las **tarifas de referencia del mercado**.
 4. `GET /auth/me` → usuario actual.
+5. `POST /auth/password` (email, password) → token, **solo** para la cuenta de demostración (ver abajo).
 
 El código vence en 10 minutos, sirve una sola vez, permite 5 intentos y hay que esperar 30 segundos para pedir otro.
 Solo se guarda un hash del código. No hay roles: cada usuario ve y edita **solo** sus cotizaciones, tarifas y
@@ -71,6 +72,25 @@ estadísticas (los datos de otro usuario responden 404).
 ### Envío de correos
 `EMAIL_BACKEND`: `console` (muestra el código en la terminal; en local), `smtp` (por ejemplo Gmail, solo en local) o
 `brevo` (API HTTP gratis; funciona en Render, cuyo plan gratis bloquea SMTP). Ver `.env.example`.
+
+## Cuentas de prueba
+
+| Rol | Correo | Contraseña |
+|---|---|---|
+| Administrador (o el rol con más permisos) | administrador@gmail.com | demo123 |
+
+Este proyecto no tiene roles: cada persona ve solo lo suyo. La cuenta de demostración es un usuario normal que ya
+trae sus tarifas y las 4 cotizaciones de ejemplo (borrador, enviada, aceptada y rechazada).
+
+**Cómo entrar:** en **Iniciar sesión** elige **Con contraseña** y escribe el correo y `demo123`. Las demás cuentas
+siguen entrando con el código de 6 dígitos que llega al correo; la contraseña no sirve para ellas.
+
+- El servidor crea la cuenta al arrancar si no existe (`services/demo.py`). Nunca se envían códigos ni correos a esa
+  dirección: no es nuestra.
+- Variables: `DEMO_ACCOUNTS` (por defecto `true`), `DEMO_ADMIN_EMAIL` (por defecto `administrador@gmail.com`) y
+  `DEMO_PASSWORD` (por defecto `demo123`). Con `DEMO_ACCOUNTS=false` la cuenta no entra y no se crea.
+
+> **Después de presentar, poner DEMO_ACCOUNTS=false en el servidor.**
 
 ## Flujo de uso
 1. Regístrate y verifica el código: tus tarifas ya vienen cargadas (ajústalas en `/rates` o restablécelas con
@@ -187,7 +207,7 @@ node scripts/compare-protocols.mts` en el front, o el botón **Comparar los dos*
 ```bash
 pytest
 ```
-177 pruebas sobre SQLite: nunca tocan la base de Neon, no envían correos reales (leen los códigos de una bandeja en
+187 pruebas sobre SQLite: nunca tocan la base de Neon, no envían correos reales (leen los códigos de una bandeja en
 memoria) y nunca llaman a Groq (las respuestas del modelo se simulan a nivel HTTP). `tests/test_simulation.py` levanta
 la app en un puerto local y llama al servicio gRPC con el cliente generado: éxito, mismo resultado que REST, sin token,
 token inválido, cotización ajena, sin analizar y fuera de rango.
