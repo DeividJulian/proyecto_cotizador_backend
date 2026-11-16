@@ -12,9 +12,10 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 import config
 import models  # noqa: F401  (registers every table)
 import routers
-from database import Base, engine
+from database import Base, SessionLocal, engine
 from rpc.simulation import simulation_app
 from schemas.common import Health, Message
+from services.demo import ensure_demo_accounts
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,6 +25,13 @@ logging.basicConfig(
 logger = logging.getLogger("cotizador.api")
 
 Base.metadata.create_all(bind=engine)
+
+# Demo account for presentations (DEMO_ACCOUNTS=true by default; set it to false after presenting)
+with SessionLocal() as _db:
+    try:
+        ensure_demo_accounts(_db)
+    except SQLAlchemyError:
+        logging.getLogger("cotizador.demo").exception("Could not create the demo account")
 
 app = FastAPI(
     title="Cotizador IA",

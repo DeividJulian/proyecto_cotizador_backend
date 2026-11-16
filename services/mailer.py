@@ -24,6 +24,10 @@ class EmailError(Exception):
 
 
 def send_email(to: str, subject: str, text: str, html: str | None = None) -> None:
+    # The demo account's inbox is not ours: nothing is ever sent there (second barrier after the auth router)
+    if to.strip().lower() == config.DEMO_ADMIN_EMAIL:
+        logger.warning("Email to the demo account blocked: %s", subject)
+        return
     backend = config.EMAIL_BACKEND
     if backend == "memory":
         OUTBOX.append({"to": to, "subject": subject, "text": text, "html": html})

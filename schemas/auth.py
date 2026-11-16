@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, EmailStr, StringConstraints
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints
 
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=100)]
 Code = Annotated[str, StringConstraints(strip_whitespace=True, pattern=r"^\d{6}$")]
@@ -19,6 +19,12 @@ class LoginInput(BaseModel):
 class VerifyInput(BaseModel):
     email: EmailStr
     code: Code
+
+
+class PasswordLoginInput(BaseModel):
+    """Only for the demo account (DEMO_ACCOUNTS): everybody else logs in with an emailed code."""
+    email: EmailStr
+    password: str = Field(min_length=1, max_length=200)
 
 
 class UserOut(BaseModel):

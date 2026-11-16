@@ -838,6 +838,28 @@
         "title": "ModuleSuggestion",
         "type": "object"
       },
+      "PasswordLoginInput": {
+        "description": "Only for the demo account (DEMO_ACCOUNTS): everybody else logs in with an emailed code.",
+        "properties": {
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "PasswordLoginInput",
+        "type": "object"
+      },
       "PriceExplanation": {
         "properties": {
           "drivers": {
@@ -2888,6 +2910,108 @@
           }
         ],
         "summary": "Usuario actual",
+        "tags": [
+          "Autenticación"
+        ]
+      }
+    },
+    "/auth/password": {
+      "post": {
+        "description": "Solo para la cuenta de demostración (DEMO_ACCOUNTS=true). Las demás cuentas entran con código al correo.",
+        "operationId": "password_login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordLoginInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Código inválido o vencido"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Falta el token o venció"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No existe o es de otro usuario"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflicto con el estado actual"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Datos inválidos"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Demasiadas solicitudes (puede traer Retry-After)"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Falló un servicio externo (correo o IA)"
+          }
+        },
+        "summary": "Entrar con contraseña (cuenta de demostración)",
         "tags": [
           "Autenticación"
         ]

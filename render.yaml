@@ -26,3 +26,5 @@ services:
         sync: false # clave de Groq (gsk_...); sin ella la IA queda deshabilitada
       - key: AI_MODEL
         value: openai/gpt-oss-20b
+      - key: DEMO_ACCOUNTS
+        value: "true" # cuenta de demostración con contraseña; poner false después de presentar

@@ -31,7 +31,7 @@ def test_errors_use_the_error_schema():
 
 
 def test_protected_endpoints_declare_the_jwt():
-    public = {"/", "/health", "/auth/register", "/auth/login", "/auth/verify", "/rates/market"}
+    public = {"/", "/health", "/auth/register", "/auth/login", "/auth/verify", "/auth/password", "/rates/market"}
     for method, path, operation in operations():
         if path not in public:
             assert operation.get("security") == [{"HTTPBearer": []}], f"{method.upper()} {path}"

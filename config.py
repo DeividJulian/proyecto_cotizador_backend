@@ -38,3 +38,9 @@ CORS_ORIGINS = [
     ).split(",")
     if o.strip()
 ]
+
+# Demo account for presenting the project: it logs in with a password instead of an emailed code.
+# The password is public on purpose. After presenting, set DEMO_ACCOUNTS=false on the server.
+DEMO_ACCOUNTS = os.getenv("DEMO_ACCOUNTS", "true").strip().lower() in ("1", "true", "yes", "si", "sí")
+DEMO_ADMIN_EMAIL = os.getenv("DEMO_ADMIN_EMAIL", "administrador@gmail.com").strip().lower()
+DEMO_PASSWORD = os.getenv("DEMO_PASSWORD", "demo123")
