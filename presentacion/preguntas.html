@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Cotizador IA · Preguntas del proyecto</title>
+<style>
+  @page { size: A4; margin: 14mm 15mm; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; font-size: 10.2pt; line-height: 1.38; color: #1b2430; margin: 0; }
+  header { border-bottom: 2px solid #1b2430; padding-bottom: 6px; margin-bottom: 10px; }
+  h1 { font-size: 19pt; margin: 0; }
+  header p { margin: 2px 0 0; color: #4a5664; }
+  h2 { font-size: 11pt; margin: 11px 0 3px; color: #0b5cad; break-after: avoid; }
+  p { margin: 0 0 4px; }
+  ul { margin: 0 0 4px; padding-left: 17px; }
+  li { margin-bottom: 1px; }
+  table { border-collapse: collapse; width: 100%; margin: 4px 0 6px; font-size: 9.6pt; }
+  th, td { border: 1px solid #c8d0d9; padding: 3px 6px; text-align: left; vertical-align: top; }
+  th { background: #eef2f6; }
+  code { font-family: Consolas, monospace; font-size: 9pt; background: #f1f4f7; padding: 0 3px; border-radius: 3px; }
+  .note { color: #4a5664; font-size: 9.4pt; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cotizador IA · Preguntas del proyecto</h1>
+  <p>Programación Orientada a la Web · respuestas cortas con datos del código</p>
+</header>
+
+<h2>1. ¿Qué hace?</h2>
+<p>Convierte la descripción de un proyecto de software, escrita en lenguaje natural, en una cotización completa: detecta
+los módulos, estima las horas con PERT, calcula el precio con las tarifas del usuario y redacta la propuesta comercial.
+Está pensado para freelancers que no saben cuánto cobrar. Cada cotización pasa por los estados borrador → enviada →
+aceptada o rechazada.</p>
+
+<h2>2. ¿Qué tecnologías usa?</h2>
+<ul>
+  <li><b>Frontend:</b> Angular 21 y TypeScript, con signals y componentes standalone. Usa Web Worker (Monte Carlo), Shared Worker (sincroniza las pestañas) y Service Worker (modo sin conexión). Las respuestas se parsean con Zod.</li>
+  <li><b>Backend:</b> Python, FastAPI y Pydantic, SQLAlchemy, PyJWT y numpy. Connect (connectrpc) con Protobuf para gRPC.</li>
+  <li><b>Base de datos:</b> PostgreSQL en Neon, con 5 tablas: usuarios, códigos de verificación, tarifas, cotizaciones e ítems.</li>
+  <li><b>Servicios externos:</b> Brevo (correo de los códigos) y Groq (IA, opcional).</li>
+</ul>
+
+<h2>3. ¿Cómo está organizada la arquitectura?</h2>
+<p>Son dos repositorios: un frontend SPA y una API. En el backend hay capas: <code>routers/</code> (HTTP),
+<code>schemas/</code> (contratos Pydantic), <code>services/</code> (lógica de negocio) y <code>models/</code> (tablas).
+El contrato <code>openapi.json</code> está versionado y el front genera sus tipos y su cliente desde ese archivo, así que
+el tipado va de la base de datos hasta el componente. El servicio gRPC está montado en la misma app y el mismo puerto.</p>
+
+<h2>4. ¿Cómo funciona lo más importante?</h2>
+<ul>
+  <li><b>Análisis del alcance:</b> el texto se normaliza (sin tildes ni mayúsculas) y se compara con un catálogo de
+      19 módulos que tienen palabras clave en español e inglés. También se buscan señales de complejidad (baja, media o alta).</li>
+  <li><b>Estimación PERT:</b> cada módulo tiene horas optimistas (O), más probables (M) y pesimistas (P), y la estimación
+      es (O + 4·M + P) ÷ 6. Las horas se reparten por rol, y QA, gestión y despliegue se calculan como un porcentaje del desarrollo.</li>
+  <li><b>Precio:</b> costo directo (horas × tarifa) → contingencia → margen → descuento → IVA. Los pagos se dividen en 40/30/30.</li>
+  <li><b>Riesgo:</b> una simulación Monte Carlo Beta-PERT da P50, P80 y P90 y la probabilidad de pasarse de las horas cotizadas.</li>
+  <li><b>Cotizaciones parecidas:</b> TF-IDF y similitud del coseno, implementados desde cero.</li>
+  <li><b>IA (Groq):</b> da una segunda opinión del alcance, explica el precio, propone preguntas para el cliente y mejora
+      la redacción de la propuesta. Nunca cambia horas ni precios: si una redacción altera una cifra, se descarta.</li>
+</ul>
+
+<h2>5. ¿Qué roles hay?</h2>
+<p>No hay roles. Cada usuario ve y edita solo sus cotizaciones, tarifas y estadísticas. Los datos de otro usuario
+responden 404, como si no existieran. La cuenta de demostración es un usuario normal con datos de ejemplo.</p>
+
+<h2>6. ¿Cómo se inicia sesión?</h2>
+<p>Sin contraseña: la persona escribe su correo y recibe un código de 6 dígitos. El código vence en 10 minutos, sirve
+una sola vez, permite 5 intentos y solo se guarda su hash HMAC-SHA256. Al verificarlo, la API entrega un JWT de 72 horas.
+Para presentar existe una única cuenta que entra con contraseña («Con contraseña» en el login). Se desactiva con
+<code>DEMO_ACCOUNTS=false</code> y nunca se le envían correos.</p>
+<table>
+  <tr><th>Rol</th><th>Correo</th><th>Contraseña</th></tr>
+  <tr><td>Administrador (o el rol con más permisos)</td><td>administrador@gmail.com</td><td>demo123</td></tr>
+</table>
+
+<h2>7. ¿Dónde está la seguridad?</h2>
+<ul>
+  <li>Las rutas protegidas exigen el JWT (<code>security.py</code>). REST y gRPC lo validan con la misma función.</li>
+  <li>Cada consulta filtra por el dueño, así que nadie ve lo de otro usuario.</li>
+  <li>CORS solo admite el front de Vercel y localhost.</li>
+  <li>Pydantic valida las entradas. Los errores llevan mensaje en español y nunca se devuelve un 500 sin controlar.</li>
+  <li>Ante la IA, los nombres, correos y teléfonos se tapan antes de enviar el texto y se restauran en la respuesta.</li>
+  <li>No hay claves en el código: todo se configura con variables de entorno.</li>
+</ul>
+
+<h2>8. ¿Cómo se comunican el front y el back?</h2>
+<p>Principalmente por <b>REST con JSON</b>: 41 operaciones en 32 rutas, descritas en <code>openapi.json</code>.
+El front las llama con el cliente generado (ng-openapi-gen sobre HttpClient) y parsea cada respuesta con Zod. Hay además
+<b>1 método gRPC</b> sobre Connect con Protobuf, <code>SimulationService/Simulate</code>, que envía el progreso de la
+simulación en streaming. En la pantalla hay un interruptor REST/gRPC. Con el volumen medido (100.000 simulaciones y
+10.000 totales), el mensaje Protobuf pesa un 34 % menos sin comprimir.</p>
+
+<h2>9. ¿Cómo se probó?</h2>
+<ul>
+  <li><b>Backend:</b> 187 pruebas en 15 archivos con pytest, sobre SQLite. Nunca tocan Neon, no envían correos reales
+      y nunca llaman a Groq: la IA se simula a nivel HTTP. Cubren login, aislamiento entre usuarios, cálculos, contrato
+      OpenAPI, gRPC (éxito, error y autenticación) y la cuenta demo.</li>
+  <li><b>Frontend:</b> 39 pruebas en 7 archivos con Vitest. Cubren la sesión, el parseo con Zod, los mocks, el cliente
+      gRPC y la simulación.</li>
+  <li>Hay verificaciones de que el contrato y el código generado están al día (<code>check:api</code>, <code>check:proto</code>).</li>
+</ul>
+
+<h2>10. ¿Dónde está desplegado?</h2>
+<p>La API está en <b>Render</b> (plan gratis, definido en <code>render.yaml</code>), la base de datos en <b>Neon</b> y
+el front en <b>Vercel</b>. Render termina TLS y habla HTTP/1.1 con la app. Por eso se usó Connect para gRPC: funciona
+sobre HTTP/1.1 sin un proxy aparte.</p>
+
+<p class="note">Después de presentar, poner DEMO_ACCOUNTS=false en el servidor.</p>
+</body>
+</html>
