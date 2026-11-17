@@ -94,7 +94,7 @@ siguen entrando con el código de 6 dígitos que llega al correo; la contraseña
 
 ## Flujo de uso
 1. Regístrate y verifica el código: tus tarifas ya vienen cargadas (ajústalas en `/rates` o restablécelas con
-   `POST /rates/reset`). `POST /seed` carga cotizaciones de ejemplo.
+   `POST /rates/reset`).
 2. `POST /quotes` con el alcance en texto libre (opcional: para quién es, `client_name` y `client_company`).
 3. `POST /quotes/{id}/analyze`: módulos, horas y precio.
 4. Ajustes: `PUT /quotes/{id}` (margen, descuento…) o `/quotes/{id}/items` (agregar, editar, quitar). Todo se recalcula solo.
@@ -113,7 +113,7 @@ Una cotización enviada queda congelada; para editarla hay que devolverla a borr
 | Cotizaciones | CRUD en `/quotes`, `/analyze`, `/summary`, `/status`, `/similar` |
 | Módulos | `/quotes/{id}/items` (GET, POST, PUT, DELETE) |
 | Propuesta | `/quotes/{id}/proposal` y `/download` |
-| Estadísticas | `GET /stats`, `POST /seed` |
+| Estadísticas | `GET /stats` |
 | IA | `GET /ai/status`, `POST /ai/quotes/{id}/scope-review`, `/explain-price`, `/client-questions`, `/improve-proposal`; `PATCH /quotes/{id}/proposal` aplica las secciones aceptadas |
 | Simulación | `POST /quotes/{id}/simulation` (REST) y `cotizador.v1.SimulationService/Simulate` (gRPC con streaming, ver abajo) |
 
@@ -207,7 +207,7 @@ node scripts/compare-protocols.mts` en el front, o el botón **Comparar los dos*
 ```bash
 pytest
 ```
-187 pruebas sobre SQLite: nunca tocan la base de Neon, no envían correos reales (leen los códigos de una bandeja en
+182 pruebas sobre SQLite: nunca tocan la base de Neon, no envían correos reales (leen los códigos de una bandeja en
 memoria) y nunca llaman a Groq (las respuestas del modelo se simulan a nivel HTTP). `tests/test_simulation.py` levanta
 la app en un puerto local y llama al servicio gRPC con el cliente generado: éxito, mismo resultado que REST, sin token,
 token inválido, cotización ajena, sin analizar y fuera de rango.

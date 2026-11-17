@@ -1728,36 +1728,6 @@
         "title": "SectionText",
         "type": "object"
       },
-      "SeedResult": {
-        "properties": {
-          "message": {
-            "title": "Message",
-            "type": "string"
-          },
-          "summary": {
-            "$ref": "#/components/schemas/SeedSummary"
-          }
-        },
-        "required": [
-          "message",
-          "summary"
-        ],
-        "title": "SeedResult",
-        "type": "object"
-      },
-      "SeedSummary": {
-        "properties": {
-          "quotes": {
-            "title": "Quotes",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "quotes"
-        ],
-        "title": "SeedSummary",
-        "type": "object"
-      },
       "SessionOut": {
         "properties": {
           "token": {
@@ -5351,75 +5321,6 @@
         "summary": "Estimar alcance",
         "tags": [
           "Alcance"
-        ]
-      }
-    },
-    "/seed": {
-      "post": {
-        "description": "Carga cotizaciones de ejemplo en tu cuenta. Con reset=true primero borra todas tus cotizaciones.",
-        "operationId": "load_example_quotes",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "reset",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "Reset",
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SeedResult"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Falta el token o venció"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Conflicto con el estado actual"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "description": "Datos inválidos"
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "summary": "Cargar ejemplos",
-        "tags": [
-          "Datos de ejemplo"
         ]
       }
     },

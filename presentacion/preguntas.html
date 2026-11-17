@@ -85,7 +85,7 @@ Para presentar existe una única cuenta que entra con contraseña («Con contras
 </ul>
 
 <h2>8. ¿Cómo se comunican el front y el back?</h2>
-<p>Principalmente por <b>REST con JSON</b>: 41 operaciones en 32 rutas, descritas en <code>openapi.json</code>.
+<p>Principalmente por <b>REST con JSON</b>: 40 operaciones en 31 rutas, descritas en <code>openapi.json</code>.
 El front las llama con el cliente generado (ng-openapi-gen sobre HttpClient) y parsea cada respuesta con Zod. Hay además
 <b>1 método gRPC</b> sobre Connect con Protobuf, <code>SimulationService/Simulate</code>, que envía el progreso de la
 simulación en streaming. En la pantalla hay un interruptor REST/gRPC. Con el volumen medido (100.000 simulaciones y
@@ -93,7 +93,7 @@ simulación en streaming. En la pantalla hay un interruptor REST/gRPC. Con el vo
 
 <h2>9. ¿Cómo se probó?</h2>
 <ul>
-  <li><b>Backend:</b> 187 pruebas en 15 archivos con pytest, sobre SQLite. Nunca tocan Neon, no envían correos reales
+  <li><b>Backend:</b> 182 pruebas en 15 archivos con pytest, sobre SQLite. Nunca tocan Neon, no envían correos reales
       y nunca llaman a Groq: la IA se simula a nivel HTTP. Cubren login, aislamiento entre usuarios, cálculos, contrato
       OpenAPI, gRPC (éxito, error y autenticación) y la cuenta demo.</li>
   <li><b>Frontend:</b> 39 pruebas en 7 archivos con Vitest. Cubren la sesión, el parseo con Zod, los mocks, el cliente

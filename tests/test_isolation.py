@@ -23,7 +23,6 @@ PRIVATE_ROUTES = [
     ("post", "/scope/estimate"),
     ("post", "/finance/simulate"),
     ("get", "/stats"),
-    ("post", "/seed"),
 ]
 
 

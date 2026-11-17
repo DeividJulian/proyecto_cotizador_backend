@@ -22,12 +22,3 @@ class Stats(BaseModel):
     negotiating_value: int
     hours_by_role: dict[str, float]
     top_modules: list[TopModule]
-
-
-class SeedSummary(BaseModel):
-    quotes: int
-
-
-class SeedResult(BaseModel):
-    message: str
-    summary: SeedSummary

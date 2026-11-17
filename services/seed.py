@@ -1,4 +1,4 @@
-"""Example quotes so a new user can see how the app works with real data."""
+"""Example quotes for the demo account, so it shows how the app works with real data."""
 from sqlalchemy.orm import Session
 
 from models.quote import Quote
@@ -30,12 +30,6 @@ EXAMPLES = [
 
 def has_quotes(db: Session, user_id: int) -> bool:
     return db.query(Quote).filter(Quote.user_id == user_id).first() is not None
-
-
-def delete_quotes(db: Session, user_id: int) -> None:
-    for quote in db.query(Quote).filter(Quote.user_id == user_id).all():
-        db.delete(quote)
-    db.flush()
 
 
 def load_examples(db: Session, user: User) -> dict:
