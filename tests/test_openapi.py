@@ -26,6 +26,9 @@ def test_errors_use_the_error_schema():
     for method, path, operation in operations():
         for code, response in operation["responses"].items():
             if code.startswith(("4", "5")):
+                if (path, code) == ("/health", "503"):  # monitoring expects {"status": "error"}, same shape as the 200
+                    assert response["content"]["application/json"]["schema"] == {"$ref": "#/components/schemas/Health"}
+                    continue
                 schema = response["content"]["application/json"]["schema"]
                 assert schema == {"$ref": "#/components/schemas/Error"}, f"{method.upper()} {path} {code}"
 

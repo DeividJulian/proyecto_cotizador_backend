@@ -3260,6 +3260,7 @@
     },
     "/health": {
       "get": {
+        "description": "Para el monitoreo: comprueba la conexión con la base de datos. Es pública y no devuelve datos.",
         "operationId": "health",
         "responses": {
           "200": {
@@ -3271,6 +3272,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            },
+            "description": "La base de datos no responde"
           }
         },
         "summary": "Estado",

@@ -3,16 +3,18 @@ import logging
 import pkgutil
 import time
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.orm import Session
 
 import config
 import models  # noqa: F401  (registers every table)
 import routers
-from database import Base, SessionLocal, engine
+from database import Base, SessionLocal, engine, get_db
 from rpc.simulation import simulation_app
 from schemas.common import Health, Message
 from services.demo import ensure_demo_accounts
@@ -104,6 +106,18 @@ def root():
     return {"message": "API del Cotizador IA funcionando"}
 
 
-@app.get("/health", response_model=Health, tags=["Sistema"], summary="Estado")
-def health():
+@app.get(
+    "/health",
+    response_model=Health,
+    tags=["Sistema"],
+    summary="Estado",
+    responses={503: {"model": Health, "description": "La base de datos no responde"}},
+)
+def health(db: Session = Depends(get_db)):
+    """Para el monitoreo: comprueba la conexión con la base de datos. Es pública y no devuelve datos."""
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception as exc:  # a health check must never answer an uncontrolled 500
+        logger.error("Health check: the database is not responding", exc_info=exc)
+        return JSONResponse(status_code=503, content={"status": "error"})
     return {"status": "ok"}
