@@ -90,7 +90,8 @@ siguen entrando con el código de 6 dígitos que llega al correo; la contraseña
 - Variables: `DEMO_ACCOUNTS` (por defecto `true`), `DEMO_ADMIN_EMAIL` (por defecto `administrador@gmail.com`) y
   `DEMO_PASSWORD` (por defecto `demo123`). Con `DEMO_ACCOUNTS=false` la cuenta no entra y no se crea.
 
-> **Después de presentar, poner DEMO_ACCOUNTS=false en el servidor.**
+> **La cuenta debe seguir activa hasta el 30 de noviembre de 2026, mientras se califica el proyecto.** Después,
+> poner `DEMO_ACCOUNTS=false` en el servidor.
 
 ## Flujo de uso
 1. Regístrate y verifica el código: tus tarifas ya vienen cargadas (ajústalas en `/rates` o restablécelas con
